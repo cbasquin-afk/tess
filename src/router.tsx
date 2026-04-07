@@ -19,7 +19,8 @@ function lazyModule(m: ModuleConfig) {
     return { index: true as const, element }
   }
   return {
-    path: m.path.replace(/^\//, ''),
+    // `/*` permet à chaque module d'avoir ses propres sous-routes
+    path: m.path.replace(/^\//, '') + '/*',
     element,
   }
 }

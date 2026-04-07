@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 
-export type UserRole = 'commercial' | 'admin' | 'superadmin'
+export type UserRole = 'commercial' | 'admin' | 'superadmin' | 'fournisseur'
 
 export interface AppUser {
   id: string
@@ -21,6 +21,7 @@ export interface ModuleConfig {
 }
 
 export const ROLE_RANK: Record<UserRole, number> = {
+  fournisseur: 1,
   commercial: 1,
   admin: 2,
   superadmin: 3,

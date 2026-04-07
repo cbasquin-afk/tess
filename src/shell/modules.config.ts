@@ -43,4 +43,13 @@ export const MODULES: ModuleConfig[] = [
     soon: true,
     loader: () => import('../modules/conformite'),
   },
+  {
+    id: 'fournisseur',
+    label: 'Espace fournisseur',
+    icon: '◎',
+    path: '/fournisseur',
+    minRole: 'fournisseur',
+    soon: true,
+    loader: () => import('../modules/fournisseur'),
+  },
 ]

@@ -4,6 +4,13 @@ import { useAuth } from '../shared/auth/useAuth'
 import { hasRole } from '../shared/types'
 import { Badge } from '../shared/ui'
 
+const PERFLEAD_SUBLINKS = [
+  { path: '/perflead', label: 'Vue générale' },
+  { path: '/perflead/import', label: 'Import CRM' },
+  { path: '/perflead/commerciaux', label: 'Commerciaux' },
+  { path: '/perflead/contrats', label: 'Contrats & PM' },
+] as const
+
 export function Sidebar() {
   const { user, role, signOut } = useAuth()
   const location = useLocation()
@@ -68,6 +75,34 @@ export function Sidebar() {
             </Link>
           )
         })}
+
+        {/* Sous-navigation PerfLead — visible quand on est dans /perflead */}
+        {location.pathname.startsWith('/perflead') && (
+          <div style={{ marginTop: 4, marginBottom: 8 }}>
+            {PERFLEAD_SUBLINKS.map((sl) => {
+              const active = location.pathname === sl.path
+              return (
+                <Link
+                  key={sl.path}
+                  to={sl.path}
+                  style={{
+                    display: 'block',
+                    padding: '6px 12px 6px 38px',
+                    borderRadius: 5,
+                    color: active ? '#fff' : '#94a3b8',
+                    background: active ? '#1e293b' : 'transparent',
+                    textDecoration: 'none',
+                    fontSize: 12,
+                    fontWeight: active ? 600 : 400,
+                    marginBottom: 1,
+                  }}
+                >
+                  {sl.label}
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </nav>
 
       <div

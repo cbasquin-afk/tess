@@ -1,12 +1,29 @@
-function Perflead() {
+import { lazy, Suspense } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+
+const Dashboard = lazy(() => import('./views/Dashboard'))
+const Import = lazy(() => import('./views/Import'))
+const Commerciaux = lazy(() => import('./views/Commerciaux'))
+const Contrats = lazy(() => import('./views/Contrats'))
+
+function PerfLeadModule() {
   return (
-    <div>
-      <h1 style={{ margin: 0, fontSize: 24 }}>PerfLead</h1>
-      <p style={{ color: '#64748b' }}>
-        Module en cours de migration depuis le repo existant.
-      </p>
-    </div>
+    <Suspense
+      fallback={
+        <div style={{ color: '#64748b', fontSize: 14 }}>
+          Chargement PerfLead…
+        </div>
+      }
+    >
+      <Routes>
+        <Route index element={<Dashboard />} />
+        <Route path="import" element={<Import />} />
+        <Route path="commerciaux" element={<Commerciaux />} />
+        <Route path="contrats" element={<Contrats />} />
+        <Route path="*" element={<Navigate to="" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
 
-export default Perflead
+export default PerfLeadModule
