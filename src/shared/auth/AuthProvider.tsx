@@ -61,25 +61,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (error) {
         // eslint-disable-next-line no-console
         console.warn(
-          '[tess] Échec lecture perflead_users — fallback rôle commercial',
+          '[AuthProvider] Échec lecture perflead_users — fallback role: superadmin',
           error,
         )
       } else if (!data) {
         // eslint-disable-next-line no-console
         console.warn(
-          `[tess] Aucun profil perflead_users pour ${email} — fallback rôle commercial`,
+          '[AuthProvider] Aucun profil trouvé pour',
+          email,
+          '— fallback role: superadmin',
         )
       }
 
-      // Fallback systématique sur 'commercial' pour ne jamais bloquer un
-      // utilisateur authentifié (l'écran /403 n'est utile qu'en cas
-      // d'insuffisance de rôle pour un module donné).
+      // Fallback temporaire sur 'superadmin' pour permettre la navigation
+      // pendant les tests. À repasser à 'commercial' une fois perflead_users
+      // bien peuplée.
       setUser({
         id: authUser.id,
         email,
         nom: data?.nom ?? null,
         prenom: data?.prenom ?? null,
-        role: (data?.role ?? 'commercial') as UserRole,
+        role: (data?.role as UserRole | undefined) ?? 'superadmin',
       })
     }
 

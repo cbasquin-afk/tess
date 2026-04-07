@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import {
+  BarController,
   BarElement,
   CategoryScale,
   Chart as ChartJS,
   Legend,
   LinearScale,
+  LineController,
   LineElement,
   PointElement,
   Tooltip,
@@ -16,6 +18,8 @@ import { useContrats } from '../hooks/useContrats'
 import type { CompagnieStats, Contrat } from '../types'
 
 ChartJS.register(
+  BarController,
+  LineController,
   CategoryScale,
   LinearScale,
   BarElement,
