@@ -45,24 +45,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return
       }
       const authUser = currentSession.user
+      const email = authUser.email ?? ''
+
+      // Recherche par email — la colonne `id` de perflead_users n'est PAS
+      // l'UUID Supabase Auth, c'est un id interne. La colonne email est la
+      // jointure naturelle vers l'utilisateur authentifié.
       const { data, error } = await supabase
         .from('perflead_users')
         .select('role, nom, prenom')
-        .eq('id', authUser.id)
+        .eq('email', email)
         .maybeSingle<PerfleadUserRow>()
 
       if (cancelled) return
 
       if (error) {
         // eslint-disable-next-line no-console
-        console.error('[tess] Échec récupération profil perflead_users', error)
-        setUser(null)
-        return
+        console.warn(
+          '[tess] Échec lecture perflead_users — fallback rôle commercial',
+          error,
+        )
+      } else if (!data) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[tess] Aucun profil perflead_users pour ${email} — fallback rôle commercial`,
+        )
       }
 
+      // Fallback systématique sur 'commercial' pour ne jamais bloquer un
+      // utilisateur authentifié (l'écran /403 n'est utile qu'en cas
+      // d'insuffisance de rôle pour un module donné).
       setUser({
         id: authUser.id,
-        email: authUser.email ?? '',
+        email,
         nom: data?.nom ?? null,
         prenom: data?.prenom ?? null,
         role: (data?.role ?? 'commercial') as UserRole,
