@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchContrats, fetchLeads } from '../api'
+import { useMemo } from 'react'
+import { useLeads } from './useLeads'
+import { useContrats } from './useContrats'
 import type { Contrat, DerivedStats, Lead } from '../types'
 
 export function buildStats(leads: Lead[], contrats: Contrat[]): DerivedStats {
@@ -38,31 +39,19 @@ export function buildStats(leads: Lead[], contrats: Contrat[]): DerivedStats {
   }
 }
 
+// useStats orchestre useLeads + useContrats — les filtres sont appliqués
+// une seule fois, en amont, dans ces deux hooks. Pas de double filtrage.
 export function useStats() {
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [contrats, setContrats] = useState<Contrat[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const refetch = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [l, c] = await Promise.all([fetchLeads(), fetchContrats()])
-      setLeads(l)
-      setContrats(c)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void refetch()
-  }, [refetch])
+  const { leads, loading: loadingL, error: errorL } = useLeads()
+  const { contrats, loading: loadingC, error: errorC } = useContrats()
 
   const stats = useMemo(() => buildStats(leads, contrats), [leads, contrats])
 
-  return { leads, contrats, stats, loading, error, refetch }
+  return {
+    leads,
+    contrats,
+    stats,
+    loading: loadingL || loadingC,
+    error: errorL ?? errorC,
+  }
 }

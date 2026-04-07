@@ -4,25 +4,56 @@ import { useAuth } from '../shared/auth/useAuth'
 import { hasRole } from '../shared/types'
 import { Badge } from '../shared/ui'
 
-const PERFLEAD_SUBLINKS = [
-  { path: '/perflead', label: 'Vue générale' },
-  { path: '/perflead/hebdo', label: 'Suivi hebdo' },
-  { path: '/perflead/analyse', label: 'Analyse périodes' },
-  { path: '/perflead/commerciaux', label: 'Commerciaux' },
-  { path: '/perflead/contrats', label: 'Contrats & PM' },
-  { path: '/perflead/gammes', label: 'Gammes' },
-  { path: '/perflead/ages', label: "Tranches d'âge" },
-  { path: '/perflead/pipeline', label: 'Pipeline & statuts' },
-  { path: '/perflead/alertes', label: '🔔 Alertes' },
-  { path: '/perflead/personae', label: 'Personae' },
-  { path: '/perflead/import', label: 'Import CRM' },
+interface PerfLeadGroup {
+  label: string
+  links: readonly { path: string; label: string }[]
+}
+
+const PERFLEAD_GROUPS: readonly PerfLeadGroup[] = [
+  {
+    label: 'DASHBOARD',
+    links: [
+      { path: '/perflead', label: 'Vue générale' },
+      { path: '/perflead/hebdo', label: 'Hebdomadaire' },
+    ],
+  },
+  {
+    label: 'ANALYSE',
+    links: [
+      { path: '/perflead/contrats', label: 'Contrats & PM' },
+      { path: '/perflead/gammes', label: 'Gammes & Niveaux' },
+      { path: '/perflead/ages', label: "Tranches d'âge" },
+      { path: '/perflead/commerciaux', label: 'Commerciaux' },
+      { path: '/perflead/analyse', label: 'Analyse périodes' },
+    ],
+  },
+  {
+    label: 'PIPELINE',
+    links: [
+      { path: '/perflead/pipeline', label: 'Pipeline actif' },
+      { path: '/perflead/statuts', label: 'Statuts détaillés' },
+      { path: '/perflead/alertes', label: '🔔 Alertes' },
+    ],
+  },
+  {
+    label: 'OUTILS',
+    links: [
+      { path: '/perflead/personae', label: 'Personae' },
+      { path: '/perflead/fournisseur', label: 'Fournisseur' },
+      { path: '/perflead/import', label: 'Import CRM' },
+    ],
+  },
 ] as const
 
 export function Sidebar() {
   const { user, role, signOut } = useAuth()
   const location = useLocation()
 
-  const visible = MODULES.filter((m) => hasRole(role, m.minRole))
+  const visible = MODULES.filter(
+    (m) => !m.hidden && hasRole(role, m.minRole),
+  )
+
+  const inPerflead = location.pathname.startsWith('/perflead')
 
   return (
     <aside
@@ -83,31 +114,47 @@ export function Sidebar() {
           )
         })}
 
-        {/* Sous-navigation PerfLead — visible quand on est dans /perflead */}
-        {location.pathname.startsWith('/perflead') && (
-          <div style={{ marginTop: 4, marginBottom: 8 }}>
-            {PERFLEAD_SUBLINKS.map((sl) => {
-              const active = location.pathname === sl.path
-              return (
-                <Link
-                  key={sl.path}
-                  to={sl.path}
+        {/* Sous-navigation PerfLead — 4 groupes catégorisés */}
+        {inPerflead && (
+          <div style={{ marginTop: 6, marginBottom: 8 }}>
+            {PERFLEAD_GROUPS.map((group) => (
+              <div key={group.label}>
+                <div
                   style={{
-                    display: 'block',
-                    padding: '6px 12px 6px 38px',
-                    borderRadius: 5,
-                    color: active ? '#fff' : '#94a3b8',
-                    background: active ? '#1e293b' : 'transparent',
-                    textDecoration: 'none',
-                    fontSize: 12,
-                    fontWeight: active ? 600 : 400,
-                    marginBottom: 1,
+                    fontSize: 9,
+                    color: '#666',
+                    textTransform: 'uppercase',
+                    letterSpacing: '.08em',
+                    padding: '10px 0 3px 12px',
+                    fontWeight: 600,
                   }}
                 >
-                  {sl.label}
-                </Link>
-              )
-            })}
+                  {group.label}
+                </div>
+                {group.links.map((sl) => {
+                  const active = location.pathname === sl.path
+                  return (
+                    <Link
+                      key={sl.path}
+                      to={sl.path}
+                      style={{
+                        display: 'block',
+                        padding: '7px 12px 7px 20px',
+                        borderRadius: 5,
+                        color: active ? '#fff' : '#94a3b8',
+                        background: active ? '#1e293b' : 'transparent',
+                        textDecoration: 'none',
+                        fontSize: 12,
+                        fontWeight: active ? 600 : 400,
+                        marginBottom: 1,
+                      }}
+                    >
+                      {sl.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            ))}
           </div>
         )}
       </nav>

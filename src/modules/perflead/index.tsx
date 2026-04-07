@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { PerfLeadFiltersProvider } from './context/FiltersContext'
+import { FilterBar } from './components/FilterBar'
 
 const Dashboard = lazy(() => import('./views/Dashboard'))
 const Import = lazy(() => import('./views/Import'))
@@ -10,33 +12,46 @@ const Analyse = lazy(() => import('./views/Analyse'))
 const Gammes = lazy(() => import('./views/Gammes'))
 const Ages = lazy(() => import('./views/Ages'))
 const Pipeline = lazy(() => import('./views/Pipeline'))
+const Statuts = lazy(() => import('./views/Statuts'))
 const Alertes = lazy(() => import('./views/Alertes'))
 const Personae = lazy(() => import('./views/Personae'))
+const Fournisseur = lazy(() => import('./views/Fournisseur'))
 
 function PerfLeadModule() {
+  // Margin négatif pour annuler le padding 32 du Shell.main et permettre à
+  // la FilterBar sticky de s'étendre d'un bord à l'autre.
   return (
-    <Suspense
-      fallback={
-        <div style={{ color: '#64748b', fontSize: 14 }}>
-          Chargement PerfLead…
-        </div>
-      }
-    >
-      <Routes>
-        <Route index element={<Dashboard />} />
-        <Route path="import" element={<Import />} />
-        <Route path="commerciaux" element={<Commerciaux />} />
-        <Route path="contrats" element={<Contrats />} />
-        <Route path="hebdo" element={<Hebdo />} />
-        <Route path="analyse" element={<Analyse />} />
-        <Route path="gammes" element={<Gammes />} />
-        <Route path="ages" element={<Ages />} />
-        <Route path="pipeline" element={<Pipeline />} />
-        <Route path="alertes" element={<Alertes />} />
-        <Route path="personae" element={<Personae />} />
-        <Route path="*" element={<Navigate to="" replace />} />
-      </Routes>
-    </Suspense>
+    <PerfLeadFiltersProvider>
+      <div style={{ margin: '-32px -32px 0' }}>
+        <FilterBar />
+      </div>
+      <div style={{ padding: '24px 0 0' }}>
+        <Suspense
+          fallback={
+            <div style={{ color: '#64748b', fontSize: 14 }}>
+              Chargement PerfLead…
+            </div>
+          }
+        >
+          <Routes>
+            <Route index element={<Dashboard />} />
+            <Route path="import" element={<Import />} />
+            <Route path="commerciaux" element={<Commerciaux />} />
+            <Route path="contrats" element={<Contrats />} />
+            <Route path="hebdo" element={<Hebdo />} />
+            <Route path="analyse" element={<Analyse />} />
+            <Route path="gammes" element={<Gammes />} />
+            <Route path="ages" element={<Ages />} />
+            <Route path="pipeline" element={<Pipeline />} />
+            <Route path="statuts" element={<Statuts />} />
+            <Route path="alertes" element={<Alertes />} />
+            <Route path="personae" element={<Personae />} />
+            <Route path="fournisseur" element={<Fournisseur />} />
+            <Route path="*" element={<Navigate to="" replace />} />
+          </Routes>
+        </Suspense>
+      </div>
+    </PerfLeadFiltersProvider>
   )
 }
 

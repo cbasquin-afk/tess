@@ -50,6 +50,8 @@ export const MODULES: ModuleConfig[] = [
     path: '/fournisseur',
     minRole: 'fournisseur',
     soon: true,
+    // Caché de la sidebar — accessible via /perflead/fournisseur uniquement
+    hidden: true,
     loader: () => import('../modules/fournisseur'),
   },
 ]

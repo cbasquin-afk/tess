@@ -17,6 +17,8 @@ export interface ModuleConfig {
   path: string
   minRole: UserRole
   soon?: boolean
+  // Si true, le module reste routable mais n'apparaît pas dans la sidebar.
+  hidden?: boolean
   loader: () => Promise<{ default: ComponentType }>
 }
 
