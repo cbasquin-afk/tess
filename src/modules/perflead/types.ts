@@ -117,3 +117,70 @@ export interface DerivedStats {
   pmMoyen: number
   totalMensuel: number
 }
+
+export interface WeeklyStats {
+  weekKey: string // YYYY-MM-DD du lundi ISO
+  weekLabel: string // "Sem 12 (17/03)"
+  dateDebut: Date
+  leads: number
+  contrats: number
+  enCours: number
+  nrp: number
+  perdu: number
+  inexploitable: number
+  txTransformation: number
+  txConversion: number
+  pmMoyen: number
+}
+
+export interface AgeStats {
+  tranche: string
+  leads: number
+  contrats: number
+  enCours: number
+  txTransformation: number
+  txConversion: number
+  pmMoyen: number
+  pctLeads: number
+}
+
+export interface GammeStats {
+  produit: string
+  compagnie: string
+  formule: string | null
+  contrats: number
+  pmMoyen: number
+  caMensuel: number
+  pctContrats: number
+}
+
+export type AlerteType = 'NRP_relance' | 'en_cours_bloque' | 'lead_froid'
+
+export interface AlerteLead {
+  identifiant_projet: number | null
+  prenom: string | null
+  nom: string | null
+  telephone: string | null
+  statut: string
+  categorie: string
+  attribution: string | null
+  derniere_modification: string | null
+  joursDepuisModif: number
+  url_projet: string | null
+  typeAlerte: AlerteType
+}
+
+export type RegimeGroupe = 'SECU' | 'MSA' | 'TNS' | 'ALSMO' | 'Autre'
+
+export interface PersonaGroup {
+  key: string
+  groupe: RegimeGroupe
+  trancheAge: string
+  totalLeads: number
+  totalContrats: number
+  txConversion: number
+  pmMoyen: number
+  topProduit: string | null
+  topFormule: string | null
+  topCompagnie: string | null
+}

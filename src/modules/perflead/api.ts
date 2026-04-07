@@ -105,3 +105,34 @@ export async function upsertContrats(
     if (error) throw new Error(`upsert perflead_contrats: ${error.message}`)
   }
 }
+
+// ── Fetch avec filtre de période ──────────────────────────────
+export async function fetchLeadsByPeriod(
+  from?: string,
+  to?: string,
+): Promise<Lead[]> {
+  let q = supabase
+    .from('perflead_leads')
+    .select('*')
+    .order('date_creation', { ascending: false })
+  if (from) q = q.gte('date_creation', from)
+  if (to) q = q.lte('date_creation', to)
+  const { data, error } = await q
+  if (error) throw new Error(`perflead_leads (period): ${error.message}`)
+  return (data ?? []) as Lead[]
+}
+
+export async function fetchContratsByPeriod(
+  from?: string,
+  to?: string,
+): Promise<Contrat[]> {
+  let q = supabase
+    .from('perflead_contrats')
+    .select('*')
+    .order('date_souscription', { ascending: false })
+  if (from) q = q.gte('date_souscription', from)
+  if (to) q = q.lte('date_souscription', to)
+  const { data, error } = await q
+  if (error) throw new Error(`perflead_contrats (period): ${error.message}`)
+  return (data ?? []) as Contrat[]
+}

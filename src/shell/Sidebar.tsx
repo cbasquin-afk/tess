@@ -6,9 +6,16 @@ import { Badge } from '../shared/ui'
 
 const PERFLEAD_SUBLINKS = [
   { path: '/perflead', label: 'Vue générale' },
-  { path: '/perflead/import', label: 'Import CRM' },
+  { path: '/perflead/hebdo', label: 'Suivi hebdo' },
+  { path: '/perflead/analyse', label: 'Analyse périodes' },
   { path: '/perflead/commerciaux', label: 'Commerciaux' },
   { path: '/perflead/contrats', label: 'Contrats & PM' },
+  { path: '/perflead/gammes', label: 'Gammes' },
+  { path: '/perflead/ages', label: "Tranches d'âge" },
+  { path: '/perflead/pipeline', label: 'Pipeline & statuts' },
+  { path: '/perflead/alertes', label: '🔔 Alertes' },
+  { path: '/perflead/personae', label: 'Personae' },
+  { path: '/perflead/import', label: 'Import CRM' },
 ] as const
 
 export function Sidebar() {
