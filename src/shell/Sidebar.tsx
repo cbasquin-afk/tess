@@ -4,6 +4,7 @@ import { MODULES } from './modules.config'
 import { useAuth } from '../shared/auth/useAuth'
 import { hasRole, type ModuleConfig } from '../shared/types'
 import { Badge } from '../shared/ui'
+import { supabase } from '../shared/supabase'
 
 interface PerfLeadGroup {
   label: string
@@ -47,10 +48,19 @@ const PERFLEAD_GROUPS: readonly PerfLeadGroup[] = [
   },
 ] as const
 
-// Pour l'instant, seul PerfLead a une sous-navigation structurée.
-// Si d'autres modules en gagnent une plus tard, on pourra mapper par path.
+const ADMIN_LINKS = [
+  { path: '/admin', label: '📊 Dashboard' },
+  { path: '/admin/instances', label: '⚠️ Instances' },
+  { path: '/admin/contrats', label: '📄 Contrats' },
+  { path: '/admin/saisie', label: '✏️ Saisie & Résil.' },
+  { path: '/admin/clotures', label: '📅 Clôtures ASAF' },
+  { path: '/admin/frais', label: '💰 Frais de service' },
+] as const
+
+// PerfLead et Admin ont une sous-navigation. Si d'autres modules en
+// gagnent une plus tard, on pourra mapper par path.
 function hasSublinks(m: ModuleConfig): boolean {
-  return m.path === '/perflead'
+  return m.path === '/perflead' || m.path === '/admin'
 }
 
 function isActive(m: ModuleConfig, pathname: string): boolean {
@@ -62,6 +72,8 @@ export function Sidebar() {
   const { user, role, signOut } = useAuth()
   const location = useLocation()
   const [openModule, setOpenModule] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
   // visible mémoïsé pour éviter de re-déclencher useEffect à chaque render
   const visible = useMemo(
@@ -77,6 +89,24 @@ export function Sidebar() {
 
   function handleToggle(path: string) {
     setOpenModule((prev) => (prev === path ? null : path))
+  }
+
+  async function handleSyncPerflead() {
+    if (syncing) return
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const { error } = await supabase.rpc('tadmin_sync_from_perflead')
+      if (error) throw new Error(error.message)
+      setSyncMsg('✓ Synchronisé')
+    } catch (e: unknown) {
+      setSyncMsg(
+        '✗ ' + (e instanceof Error ? e.message.slice(0, 40) : 'Erreur'),
+      )
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(null), 3500)
+    }
   }
 
   return (
@@ -214,6 +244,71 @@ export function Sidebar() {
                         })}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {isOpen && m.path === '/admin' && (
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    {ADMIN_LINKS.map((sl) => {
+                      const slActive = location.pathname === sl.path
+                      return (
+                        <Link
+                          key={sl.path}
+                          to={sl.path}
+                          style={{
+                            display: 'block',
+                            padding: '7px 12px 7px 20px',
+                            borderRadius: 5,
+                            color: slActive ? '#fff' : '#94a3b8',
+                            background: slActive
+                              ? '#1e293b'
+                              : 'transparent',
+                            textDecoration: 'none',
+                            fontSize: 12,
+                            fontWeight: slActive ? 600 : 400,
+                            marginBottom: 1,
+                          }}
+                        >
+                          {sl.label}
+                        </Link>
+                      )
+                    })}
+                    <div style={{ padding: '8px 12px 4px 20px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleSyncPerflead()
+                        }}
+                        disabled={syncing}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid #2d3748',
+                          color: syncing ? '#475569' : '#64748b',
+                          borderRadius: 4,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          cursor: syncing ? 'wait' : 'pointer',
+                          width: '100%',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {syncing ? '… Sync en cours' : '↓ Sync PerfLead'}
+                      </button>
+                      {syncMsg && (
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: syncMsg.startsWith('✓')
+                              ? '#00C18B'
+                              : '#f87171',
+                            marginTop: 4,
+                            textAlign: 'center',
+                          }}
+                        >
+                          {syncMsg}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
