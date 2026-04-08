@@ -23,13 +23,17 @@ const ORIGINES = [
   'Recommandation',
 ] as const
 
-const VERTICALES = [
-  'Complémentaire santé',
-  'Obsèques',
-  'Animaux',
-  'Emprunteur',
-  'TNS',
-] as const
+// Valeurs alignées sur le natif (index.html / filter-verticale)
+// value = ce qui est en base, label = libellé affiché
+const VERTICALES: { value: string; label: string }[] = [
+  { value: 'Complémentaire santé', label: 'Mutuelle / Santé' },
+  { value: 'Garantie obsèques', label: 'Obsèques' },
+  { value: 'Prévoyance pro', label: 'Prévoyance' },
+  { value: 'Protection juridique', label: 'Protection juridique' },
+  { value: 'Assurance auto', label: 'Assurance auto' },
+]
+
+export const PIOCHE_VALUE = '__pioche__'
 
 export function FilterBar() {
   const { filters, setFilters, resetFilters } = usePerfLeadFilters()
@@ -45,9 +49,9 @@ export function FilterBar() {
   return (
     <div
       style={{
-        background: '#161616',
-        borderBottom: '1px solid #222',
-        padding: '8px 24px',
+        background: '#ffffff',
+        borderBottom: '1px solid #e5e7eb',
+        padding: '8px 16px',
         display: 'flex',
         alignItems: 'center',
         gap: 10,
@@ -55,6 +59,7 @@ export function FilterBar() {
         position: 'sticky',
         top: 56,
         zIndex: 10,
+        color: '#374151',
       }}
     >
       <input
@@ -64,7 +69,7 @@ export function FilterBar() {
         style={inputStyle}
         aria-label="Date début"
       />
-      <span style={{ color: '#666', fontSize: 12 }}>→</span>
+      <span style={{ color: '#9ca3af', fontSize: 12 }}>→</span>
       <input
         type="date"
         value={filters.dateTo}
@@ -85,6 +90,7 @@ export function FilterBar() {
             {c.split(' ')[0]}
           </option>
         ))}
+        <option value={PIOCHE_VALUE}>{'< Pioche >'}</option>
       </select>
 
       <select
@@ -123,8 +129,8 @@ export function FilterBar() {
       >
         <option value="">Toutes verticales</option>
         {VERTICALES.map((v) => (
-          <option key={v} value={v}>
-            {v}
+          <option key={v.value} value={v.value}>
+            {v.label}
           </option>
         ))}
       </select>
@@ -136,12 +142,10 @@ export function FilterBar() {
         onClick={resetFilters}
         style={resetStyle}
         onMouseEnter={(e) => {
-          e.currentTarget.style.color = '#aaa'
-          e.currentTarget.style.borderColor = '#555'
+          e.currentTarget.style.background = '#e5e7eb'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.color = '#666'
-          e.currentTarget.style.borderColor = '#333'
+          e.currentTarget.style.background = '#f3f4f6'
         }}
       >
         Réinitialiser
@@ -151,22 +155,22 @@ export function FilterBar() {
 }
 
 const inputStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid #2a2a2a',
-  color: '#ccc',
-  borderRadius: 5,
-  padding: '4px 8px',
+  background: '#f9fafb',
+  border: '1px solid #d1d5db',
+  color: '#374151',
+  borderRadius: 6,
+  padding: '5px 10px',
   fontSize: 12,
   outline: 'none',
 }
 
 const resetStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid #333',
-  color: '#666',
-  borderRadius: 5,
-  padding: '4px 10px',
-  fontSize: 11,
+  background: '#f3f4f6',
+  border: '1px solid #d1d5db',
+  color: '#6b7280',
+  borderRadius: 6,
+  padding: '5px 12px',
+  fontSize: 12,
   cursor: 'pointer',
-  transition: 'color 0.15s, border-color 0.15s',
+  transition: 'background 0.15s',
 }

@@ -29,6 +29,12 @@ function txColor(tx: number): string {
   return '#E24B4A'
 }
 
+function txConvColor(tx: number): string {
+  if (tx >= 20) return '#1D9E75'
+  if (tx >= 12) return '#BA7517'
+  return '#E24B4A'
+}
+
 function Ages() {
   const { leads, contrats, loading, error } = useStats()
   const ages = useAges(leads, contrats)
@@ -91,6 +97,7 @@ function Ages() {
               <th style={{ ...th, textAlign: 'right' }}>% leads</th>
               <th style={th}>Contrats</th>
               <th style={{ ...th, textAlign: 'right' }}>Tx transformation</th>
+              <th style={{ ...th, textAlign: 'right' }}>Tx conv</th>
               <th style={{ ...th, textAlign: 'right' }}>PM moyen</th>
             </tr>
           </thead>
@@ -120,6 +127,16 @@ function Ages() {
                     }}
                   >
                     {a.txTransformation.toFixed(1)}%
+                  </td>
+                  <td
+                    style={{
+                      ...td,
+                      textAlign: 'right',
+                      color: txConvColor(a.txConversion),
+                      fontWeight: 600,
+                    }}
+                  >
+                    {a.txConversion.toFixed(1)}%
                   </td>
                   <td
                     style={{

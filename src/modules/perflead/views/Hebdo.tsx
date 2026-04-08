@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useState } from 'react'
 import { addDays, format, parseISO } from 'date-fns'
 import {
   BarController,
@@ -30,19 +30,6 @@ ChartJS.register(
   Legend,
 )
 
-const COMMERCIAUX = [
-  'Christopher BASQUIN',
-  'Charlotte BOCOGNANO',
-  'Cheyenne DEBENATH',
-] as const
-
-const PERIOD_OPTIONS = [
-  { value: 4, label: '4 sem' },
-  { value: 8, label: '8 sem' },
-  { value: 13, label: '13 sem' },
-  { value: 0, label: 'Tout' },
-] as const
-
 const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const
 
 function txTransfoColor(tx: number): string {
@@ -73,17 +60,12 @@ interface DayBucket {
 }
 
 function Hebdo() {
+  // Les leads sont déjà filtrés par la FilterBar globale (commercial, dates,
+  // catégorie, origine, verticale). Pas de filtre local — pas de doublon.
   const { leads, contrats, loading, error } = useStats()
-  const [nbSemaines, setNbSemaines] = useState<number>(4)
-  const [commercial, setCommercial] = useState<string>('')
   const [drillWeek, setDrillWeek] = useState<string | null>(null)
 
-  const filteredLeads = useMemo(() => {
-    if (!commercial) return leads
-    return leads.filter((l) => l.attribution === commercial)
-  }, [leads, commercial])
-
-  const weeks = useHebdo(filteredLeads, contrats, { nbSemaines })
+  const weeks = useHebdo(leads, contrats)
 
   const totals = useMemo(() => {
     const t = weeks.reduce(
@@ -114,7 +96,7 @@ function Hebdo() {
     const sundayStr = format(sunday, 'yyyy-MM-dd')
 
     const byDay = new Map<string, DayBucket>()
-    for (const l of filteredLeads) {
+    for (const l of leads) {
       if (!l.date_creation) continue
       const dateKey = l.date_creation.slice(0, 10)
       if (dateKey < drillWeek || dateKey > sundayStr) continue
@@ -145,7 +127,7 @@ function Hebdo() {
     return Array.from(byDay.values()).sort((a, b) =>
       a.dateKey.localeCompare(b.dateKey),
     )
-  }, [drillWeek, filteredLeads])
+  }, [drillWeek, leads])
 
   function toggleDrill(weekKey: string) {
     setDrillWeek((prev) => (prev === weekKey ? null : weekKey))
@@ -232,73 +214,6 @@ function Hebdo() {
         <p style={{ color: '#64748b', marginTop: 4 }}>
           Performance semaine par semaine — cliquer sur une ligne pour le détail jour.
         </p>
-      </div>
-
-      {/* Filtres */}
-      <div
-        style={{
-          background: '#fff',
-          border: '1px solid #e2e8f0',
-          borderRadius: 10,
-          padding: 14,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            border: '1px solid #e2e8f0',
-            borderRadius: 6,
-            overflow: 'hidden',
-          }}
-        >
-          {PERIOD_OPTIONS.map((opt) => {
-            const active = nbSemaines === opt.value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setNbSemaines(opt.value)}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: active ? '#1f3a8a' : 'transparent',
-                  color: active ? '#fff' : '#64748b',
-                }}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <select
-          value={commercial}
-          onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-            setCommercial(e.target.value)
-          }
-          style={{
-            padding: '6px 12px',
-            fontSize: 13,
-            border: '1px solid #cbd5e1',
-            borderRadius: 6,
-            background: '#fff',
-            color: '#0f172a',
-          }}
-        >
-          <option value="">Tous les commerciaux</option>
-          {COMMERCIAUX.map((c) => (
-            <option key={c} value={c}>
-              {c.split(' ')[0]}
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Graphique */}

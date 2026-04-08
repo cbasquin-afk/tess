@@ -18,14 +18,12 @@ const Personae = lazy(() => import('./views/Personae'))
 const Fournisseur = lazy(() => import('./views/Fournisseur'))
 
 function PerfLeadModule() {
-  // Margin négatif pour annuler le padding 32 du Shell.main et permettre à
-  // la FilterBar sticky de s'étendre d'un bord à l'autre.
+  // FilterBar dans le flux normal du contenu (le Shell.main fournit déjà
+  // le padding 32). Sticky top: 56 la cale sous la Topbar lors du scroll.
   return (
     <PerfLeadFiltersProvider>
-      <div style={{ margin: '-32px -32px 0' }}>
-        <FilterBar />
-      </div>
-      <div style={{ padding: '24px 0 0' }}>
+      <FilterBar />
+      <div style={{ paddingTop: 24 }}>
         <Suspense
           fallback={
             <div style={{ color: '#64748b', fontSize: 14 }}>

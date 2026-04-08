@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchLeadsByPeriod } from '../api'
 import { usePerfLeadFilters } from '../context/FiltersContext'
+import { PIOCHE_VALUE } from '../components/FilterBar'
 import type { Lead } from '../types'
+
+function matchCommercial(l: Lead, commercial: string): boolean {
+  if (!commercial) return true
+  if (commercial === PIOCHE_VALUE) {
+    return !l.attribution || l.attribution === '< Pioche >'
+  }
+  return l.attribution === commercial
+}
 
 export function useLeads() {
   const { filters } = usePerfLeadFilters()
@@ -9,12 +18,16 @@ export function useLeads() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Re-fetch quand la période change (filtre serveur)
+  // Re-fetch quand la période change (filtre serveur). Une chaîne vide est
+  // passée en undefined => pas de filtre sur la requête Supabase.
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetchLeadsByPeriod(filters.dateFrom, filters.dateTo)
+    fetchLeadsByPeriod(
+      filters.dateFrom || undefined,
+      filters.dateTo || undefined,
+    )
       .then((d) => {
         if (!cancelled) setRaw(d)
       })
@@ -32,7 +45,7 @@ export function useLeads() {
   // Filtres client-side : commercial / catégorie / origine / verticale
   const leads = useMemo(() => {
     return raw.filter((l) => {
-      if (filters.commercial && l.attribution !== filters.commercial) return false
+      if (!matchCommercial(l, filters.commercial)) return false
       if (filters.categorie && l.categorie !== filters.categorie) return false
       if (filters.origine && l.origine !== filters.origine) return false
       if (filters.typeContrat && l.type_contrat !== filters.typeContrat)

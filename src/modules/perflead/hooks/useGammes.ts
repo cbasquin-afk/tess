@@ -5,40 +5,36 @@ export function useGammes(contrats: Contrat[]): GammeStats[] {
   return useMemo(() => {
     interface Bucket {
       produit: string
-      compagnie: string
-      formule: string | null
+      compagnies: Set<string>
       contrats: number
       pmVals: number[]
     }
-    const byKey = new Map<string, Bucket>()
+    // Groupement par produit uniquement (pas par produit×compagnie). Un même
+    // produit vendu par plusieurs compagnies = une seule ligne fusionnée.
+    const byProduit = new Map<string, Bucket>()
 
     for (const c of contrats) {
-      const produit = c.produit ?? 'Non renseigné'
-      const compagnie = c.compagnie ?? 'Non renseignée'
-      const formule = c.formule
-      const key = `${produit}||${compagnie}`
-      let b = byKey.get(key)
+      const produit = c.produit ?? 'Sans produit'
+      let b = byProduit.get(produit)
       if (!b) {
-        b = { produit, compagnie, formule, contrats: 0, pmVals: [] }
-        byKey.set(key, b)
+        b = { produit, compagnies: new Set(), contrats: 0, pmVals: [] }
+        byProduit.set(produit, b)
       }
       b.contrats += 1
+      if (c.compagnie) b.compagnies.add(c.compagnie)
       if (c.prime_brute_mensuelle && c.prime_brute_mensuelle > 0) {
         b.pmVals.push(c.prime_brute_mensuelle)
       }
     }
 
     const total = contrats.length || 1
-    return Array.from(byKey.values())
+    return Array.from(byProduit.values())
       .map<GammeStats>((b) => {
-        const pmMoyen = b.pmVals.length
-          ? b.pmVals.reduce((a, x) => a + x, 0) / b.pmVals.length
-          : 0
         const caMensuel = b.pmVals.reduce((a, x) => a + x, 0)
+        const pmMoyen = b.pmVals.length ? caMensuel / b.pmVals.length : 0
         return {
           produit: b.produit,
-          compagnie: b.compagnie,
-          formule: b.formule,
+          compagnies: Array.from(b.compagnies).sort(),
           contrats: b.contrats,
           pmMoyen,
           caMensuel,

@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchContratsByPeriod } from '../api'
 import { usePerfLeadFilters } from '../context/FiltersContext'
+import { PIOCHE_VALUE } from '../components/FilterBar'
 import type { Contrat } from '../types'
+
+function matchCommercial(c: Contrat, commercial: string): boolean {
+  if (!commercial) return true
+  if (commercial === PIOCHE_VALUE) {
+    return !c.attribution || c.attribution === '< Pioche >'
+  }
+  return c.attribution === commercial
+}
 
 export function useContrats() {
   const { filters } = usePerfLeadFilters()
@@ -9,12 +18,14 @@ export function useContrats() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Re-fetch quand la période change (filtre serveur sur date_souscription)
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetchContratsByPeriod(filters.dateFrom, filters.dateTo)
+    fetchContratsByPeriod(
+      filters.dateFrom || undefined,
+      filters.dateTo || undefined,
+    )
       .then((d) => {
         if (!cancelled) setRaw(d)
       })
@@ -33,8 +44,7 @@ export function useContrats() {
   // (le filtre catégorie ne s'applique pas aux contrats)
   const contrats = useMemo(() => {
     return raw.filter((c) => {
-      if (filters.commercial && c.attribution !== filters.commercial)
-        return false
+      if (!matchCommercial(c, filters.commercial)) return false
       if (filters.origine && c.origine !== filters.origine) return false
       if (filters.typeContrat && c.type_contrat !== filters.typeContrat)
         return false

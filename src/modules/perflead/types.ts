@@ -146,8 +146,9 @@ export interface AgeStats {
 
 export interface GammeStats {
   produit: string
-  compagnie: string
-  formule: string | null
+  // Liste des compagnies qui vendent ce produit (déduplication car un même
+  // produit peut être distribué par plusieurs compagnies)
+  compagnies: string[]
   contrats: number
   pmMoyen: number
   caMensuel: number

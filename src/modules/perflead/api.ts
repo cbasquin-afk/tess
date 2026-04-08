@@ -106,33 +106,59 @@ export async function upsertContrats(
   }
 }
 
-// ── Fetch avec filtre de période ──────────────────────────────
+// ── Fetch avec filtre de période, paginé ──────────────────────
+// Important : Supabase cap par défaut à 1000 lignes par requête. Avec dates
+// vides (= "tout"), il faut paginer pour éviter de plafonner silencieusement.
+
+interface PeriodFilter {
+  col: string
+  from?: string
+  to?: string
+}
+
+async function fetchAllPagedFiltered<T>(
+  table: string,
+  orderCol: string,
+  filter?: PeriodFilter,
+): Promise<T[]> {
+  let all: T[] = []
+  let from = 0
+  while (true) {
+    let q = supabase
+      .from(table)
+      .select('*')
+      .order(orderCol, { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
+    if (filter?.from) q = q.gte(filter.col, filter.from)
+    if (filter?.to) q = q.lte(filter.col, filter.to)
+    const { data, error } = await q
+    if (error) throw new Error(`${table} (period): ${error.message}`)
+    if (!data || data.length === 0) break
+    all = all.concat(data as T[])
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return all
+}
+
 export async function fetchLeadsByPeriod(
   from?: string,
   to?: string,
 ): Promise<Lead[]> {
-  let q = supabase
-    .from('perflead_leads')
-    .select('*')
-    .order('date_creation', { ascending: false })
-  if (from) q = q.gte('date_creation', from)
-  if (to) q = q.lte('date_creation', to)
-  const { data, error } = await q
-  if (error) throw new Error(`perflead_leads (period): ${error.message}`)
-  return (data ?? []) as Lead[]
+  return fetchAllPagedFiltered<Lead>('perflead_leads', 'date_creation', {
+    col: 'date_creation',
+    from,
+    to,
+  })
 }
 
 export async function fetchContratsByPeriod(
   from?: string,
   to?: string,
 ): Promise<Contrat[]> {
-  let q = supabase
-    .from('perflead_contrats')
-    .select('*')
-    .order('date_souscription', { ascending: false })
-  if (from) q = q.gte('date_souscription', from)
-  if (to) q = q.lte('date_souscription', to)
-  const { data, error } = await q
-  if (error) throw new Error(`perflead_contrats (period): ${error.message}`)
-  return (data ?? []) as Contrat[]
+  return fetchAllPagedFiltered<Contrat>(
+    'perflead_contrats',
+    'date_souscription',
+    { col: 'date_souscription', from, to },
+  )
 }

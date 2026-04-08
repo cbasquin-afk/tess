@@ -6,33 +6,29 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { format, startOfYear } from 'date-fns'
 
 export interface PerfLeadFilters {
-  dateFrom: string // 'yyyy-MM-dd'
+  dateFrom: string // 'yyyy-MM-dd' ou '' = pas de filtre
   dateTo: string
-  commercial: string // '' = tous
+  commercial: string // '' = tous, '__pioche__' = pioche
   categorie: string // '' = toutes
   origine: string // '' = toutes
   typeContrat: string // '' = toutes verticales
+}
+
+const DEFAULT_FILTERS: PerfLeadFilters = {
+  dateFrom: '',
+  dateTo: '',
+  commercial: '',
+  categorie: '',
+  origine: '',
+  typeContrat: '',
 }
 
 interface FiltersContextValue {
   filters: PerfLeadFilters
   setFilters: (patch: Partial<PerfLeadFilters>) => void
   resetFilters: () => void
-}
-
-function defaultFilters(): PerfLeadFilters {
-  const now = new Date()
-  return {
-    dateFrom: format(startOfYear(now), 'yyyy-MM-dd'),
-    dateTo: format(now, 'yyyy-MM-dd'),
-    commercial: '',
-    categorie: '',
-    origine: '',
-    typeContrat: '',
-  }
 }
 
 const FiltersContext = createContext<FiltersContextValue | undefined>(undefined)
@@ -42,14 +38,15 @@ interface ProviderProps {
 }
 
 export function PerfLeadFiltersProvider({ children }: ProviderProps) {
-  const [filters, setFiltersState] = useState<PerfLeadFilters>(defaultFilters)
+  const [filters, setFiltersState] =
+    useState<PerfLeadFilters>(DEFAULT_FILTERS)
 
   const setFilters = useCallback((patch: Partial<PerfLeadFilters>) => {
     setFiltersState((prev) => ({ ...prev, ...patch }))
   }, [])
 
   const resetFilters = useCallback(() => {
-    setFiltersState(defaultFilters())
+    setFiltersState(DEFAULT_FILTERS)
   }, [])
 
   const value = useMemo<FiltersContextValue>(

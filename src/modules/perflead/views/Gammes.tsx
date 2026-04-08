@@ -153,7 +153,7 @@ function Gammes() {
           <thead>
             <tr style={{ color: '#64748b', fontSize: 12, fontWeight: 600 }}>
               <th style={th}>Produit</th>
-              <th style={th}>Compagnie</th>
+              <th style={th}>Compagnies</th>
               <th style={th}>Nb</th>
               <th style={{ ...th, textAlign: 'right' }}>Part</th>
               <th style={{ ...th, textAlign: 'right' }}>PM moyen</th>
@@ -163,13 +163,15 @@ function Gammes() {
           <tbody>
             {gammes.map((g) => (
               <tr
-                key={`${g.produit}-${g.compagnie}`}
+                key={g.produit}
                 style={{ borderTop: '1px solid #f1f5f9' }}
               >
                 <td style={{ ...td, color: '#0f172a', fontWeight: 500 }}>
                   {g.produit}
                 </td>
-                <td style={{ ...td, color: '#64748b' }}>{g.compagnie}</td>
+                <td style={{ ...td, color: '#64748b' }}>
+                  {g.compagnies.length > 0 ? g.compagnies.join(', ') : '—'}
+                </td>
                 <td style={{ ...td, color: '#378ADD', fontWeight: 600 }}>
                   {g.contrats}
                 </td>
