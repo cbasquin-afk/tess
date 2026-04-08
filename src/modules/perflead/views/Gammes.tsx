@@ -43,34 +43,55 @@ function Gammes() {
   const { contrats, loading, error } = useContrats()
   const { byProduit, byFormule } = useGammes(contrats)
 
-  const top8 = useMemo(() => byProduit.slice(0, 8), [byProduit])
-
-  // Top compagnie : agrégation directe sur les contrats (compagnie ayant le
-  // plus de contrats signés sur la période filtrée)
-  const topCompagnie = useMemo(() => {
-    const counts = new Map<string, number>()
+  // Top 8 compagnies par nb contrats (avec PM moyen) — chart fidèle au natif
+  const top8Compagnies = useMemo(() => {
+    interface CompBucket {
+      contrats: number
+      pmVals: number[]
+    }
+    const byComp = new Map<string, CompBucket>()
     for (const c of contrats) {
-      if (!c.compagnie) continue
-      counts.set(c.compagnie, (counts.get(c.compagnie) ?? 0) + 1)
+      const comp = c.compagnie ?? 'Sans compagnie'
+      let b = byComp.get(comp)
+      if (!b) {
+        b = { contrats: 0, pmVals: [] }
+        byComp.set(comp, b)
+      }
+      b.contrats += 1
+      if (c.prime_brute_mensuelle && c.prime_brute_mensuelle > 0) {
+        b.pmVals.push(c.prime_brute_mensuelle)
+      }
     }
-    let best: { compagnie: string; nb: number } | null = null
-    for (const [compagnie, nb] of counts.entries()) {
-      if (!best || nb > best.nb) best = { compagnie, nb }
-    }
-    return best
+    return Array.from(byComp.entries())
+      .map(([compagnie, b]) => ({
+        compagnie,
+        contrats: b.contrats,
+        pmMoyen: b.pmVals.length
+          ? b.pmVals.reduce((a, x) => a + x, 0) / b.pmVals.length
+          : 0,
+      }))
+      .sort((a, b) => b.contrats - a.contrats)
+      .slice(0, 8)
   }, [contrats])
+
+  // Top compagnie (KPI) : la première du top8 si présente
+  const topCompagnie = useMemo(() => {
+    if (top8Compagnies.length === 0) return null
+    const t = top8Compagnies[0]!
+    return { compagnie: t.compagnie, nb: t.contrats }
+  }, [top8Compagnies])
 
   const topProduit = byProduit[0] ?? null
   const topFormule = byFormule[0] ?? null
 
   const chartData = useMemo<ChartData<'bar' | 'line'>>(
     () => ({
-      labels: top8.map((g) => g.produit),
+      labels: top8Compagnies.map((g) => g.compagnie),
       datasets: [
         {
           type: 'bar',
           label: 'Nb contrats',
-          data: top8.map((g) => g.contrats),
+          data: top8Compagnies.map((g) => g.contrats),
           backgroundColor: '#1D9E75',
           borderRadius: 4,
           yAxisID: 'y',
@@ -78,7 +99,7 @@ function Gammes() {
         {
           type: 'line',
           label: 'PM moyen (€)',
-          data: top8.map((g) => Math.round(g.pmMoyen)),
+          data: top8Compagnies.map((g) => Math.round(g.pmMoyen)),
           borderColor: '#BA7517',
           backgroundColor: 'transparent',
           pointBackgroundColor: '#BA7517',
@@ -89,7 +110,7 @@ function Gammes() {
         },
       ],
     }),
-    [top8],
+    [top8Compagnies],
   )
 
   const chartOptions: ChartOptions<'bar' | 'line'> = {
@@ -158,9 +179,9 @@ function Gammes() {
         />
       </div>
 
-      <Card title="Top 8 produits — volume × PM">
+      <Card title="Top 8 compagnies — volume × PM">
         <div style={{ height: 320 }}>
-          {top8.length > 0 ? (
+          {top8Compagnies.length > 0 ? (
             <Chart type="bar" data={chartData} options={chartOptions} />
           ) : (
             <div style={{ color: '#94a3b8', fontSize: 13 }}>

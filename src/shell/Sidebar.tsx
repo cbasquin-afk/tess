@@ -1,7 +1,8 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { MODULES } from './modules.config'
 import { useAuth } from '../shared/auth/useAuth'
-import { hasRole } from '../shared/types'
+import { hasRole, type ModuleConfig } from '../shared/types'
 import { Badge } from '../shared/ui'
 
 interface PerfLeadGroup {
@@ -46,15 +47,37 @@ const PERFLEAD_GROUPS: readonly PerfLeadGroup[] = [
   },
 ] as const
 
+// Pour l'instant, seul PerfLead a une sous-navigation structurée.
+// Si d'autres modules en gagnent une plus tard, on pourra mapper par path.
+function hasSublinks(m: ModuleConfig): boolean {
+  return m.path === '/perflead'
+}
+
+function isActive(m: ModuleConfig, pathname: string): boolean {
+  if (m.path === '/') return pathname === '/'
+  return pathname === m.path || pathname.startsWith(m.path + '/')
+}
+
 export function Sidebar() {
   const { user, role, signOut } = useAuth()
   const location = useLocation()
+  const [openModule, setOpenModule] = useState<string | null>(null)
 
-  const visible = MODULES.filter(
-    (m) => !m.hidden && hasRole(role, m.minRole),
+  // visible mémoïsé pour éviter de re-déclencher useEffect à chaque render
+  const visible = useMemo(
+    () => MODULES.filter((m) => !m.hidden && hasRole(role, m.minRole)),
+    [role],
   )
 
-  const inPerflead = location.pathname.startsWith('/perflead')
+  // Auto-expand : à chaque navigation, ouvrir le module dont la route matche.
+  useEffect(() => {
+    const active = visible.find((m) => isActive(m, location.pathname))
+    if (active) setOpenModule(active.path)
+  }, [location.pathname, visible])
+
+  function handleToggle(path: string) {
+    setOpenModule((prev) => (prev === path ? null : path))
+  }
 
   return (
     <aside
@@ -86,10 +109,118 @@ export function Sidebar() {
 
       <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
         {visible.map((m) => {
-          const active =
-            m.path === '/'
-              ? location.pathname === '/'
-              : location.pathname.startsWith(m.path)
+          const active = isActive(m, location.pathname)
+          const sublinks = hasSublinks(m)
+          const isOpen = openModule === m.path
+
+          // ── Module SOON : non cliquable ────────────────────
+          if (m.soon) {
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 6,
+                  color: '#64748b',
+                  fontSize: 14,
+                  cursor: 'not-allowed',
+                  marginBottom: 2,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{m.icon}</span>
+                <span style={{ flex: 1 }}>{m.label}</span>
+                <Badge tone="warning">soon</Badge>
+              </div>
+            )
+          }
+
+          // ── Module avec sous-rubriques (PerfLead) ──────────
+          if (sublinks) {
+            return (
+              <div key={m.id} style={{ marginBottom: 2 }}>
+                <div
+                  onClick={() => handleToggle(m.path)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    color: active ? '#fff' : '#cbd5e1',
+                    background: active ? '#1e293b' : 'transparent',
+                    fontSize: 14,
+                    fontWeight: active ? 600 : 400,
+                    userSelect: 'none',
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{m.icon}</span>
+                  <span style={{ flex: 1 }}>{m.label}</span>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      color: '#64748b',
+                      transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.15s',
+                      display: 'inline-block',
+                    }}
+                  >
+                    ▶
+                  </span>
+                </div>
+
+                {isOpen && m.path === '/perflead' && (
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    {PERFLEAD_GROUPS.map((group) => (
+                      <div key={group.label}>
+                        <div
+                          style={{
+                            fontSize: 9,
+                            color: '#666',
+                            textTransform: 'uppercase',
+                            letterSpacing: '.08em',
+                            padding: '10px 0 3px 12px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {group.label}
+                        </div>
+                        {group.links.map((sl) => {
+                          const slActive = location.pathname === sl.path
+                          return (
+                            <Link
+                              key={sl.path}
+                              to={sl.path}
+                              style={{
+                                display: 'block',
+                                padding: '7px 12px 7px 20px',
+                                borderRadius: 5,
+                                color: slActive ? '#fff' : '#94a3b8',
+                                background: slActive
+                                  ? '#1e293b'
+                                  : 'transparent',
+                                textDecoration: 'none',
+                                fontSize: 12,
+                                fontWeight: slActive ? 600 : 400,
+                                marginBottom: 1,
+                              }}
+                            >
+                              {sl.label}
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          }
+
+          // ── Module sans sous-rubriques : navigation directe ─
           return (
             <Link
               key={m.id}
@@ -110,54 +241,9 @@ export function Sidebar() {
             >
               <span style={{ fontSize: 16 }}>{m.icon}</span>
               <span style={{ flex: 1 }}>{m.label}</span>
-              {m.soon && <Badge tone="warning">soon</Badge>}
             </Link>
           )
         })}
-
-        {/* Sous-navigation PerfLead — 4 groupes catégorisés */}
-        {inPerflead && (
-          <div style={{ marginTop: 6, marginBottom: 8 }}>
-            {PERFLEAD_GROUPS.map((group) => (
-              <div key={group.label}>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: '#666',
-                    textTransform: 'uppercase',
-                    letterSpacing: '.08em',
-                    padding: '10px 0 3px 12px',
-                    fontWeight: 600,
-                  }}
-                >
-                  {group.label}
-                </div>
-                {group.links.map((sl) => {
-                  const active = location.pathname === sl.path
-                  return (
-                    <Link
-                      key={sl.path}
-                      to={sl.path}
-                      style={{
-                        display: 'block',
-                        padding: '7px 12px 7px 20px',
-                        borderRadius: 5,
-                        color: active ? '#fff' : '#94a3b8',
-                        background: active ? '#1e293b' : 'transparent',
-                        textDecoration: 'none',
-                        fontSize: 12,
-                        fontWeight: active ? 600 : 400,
-                        marginBottom: 1,
-                      }}
-                    >
-                      {sl.label}
-                    </Link>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        )}
       </nav>
 
       <div
