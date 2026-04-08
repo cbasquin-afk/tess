@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useFinancesCtx } from '../context/FinancesContext'
-import type { CAParCommercial, ContratLean } from '../types'
+import { useCommissionsDetail } from '../hooks/useCommissionsDetail'
+import { useRetractations } from '../hooks/useRetractations'
+import type {
+  CAParCommercial,
+  CommissionDetail,
+  ContratLean,
+  RetractationRow,
+} from '../types'
 
 const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
 type Commercial = (typeof COMMERCIAUX)[number] | 'Tous'
@@ -79,6 +86,41 @@ function fmtEur(n: number): string {
 
 function fmtMois(annee: number, mois: number): string {
   return `${MOIS_NOMS[mois] ?? mois} ${annee}`
+}
+
+// Estimation du taux compagnie 1ère année basée sur le code type_commission
+// (PA = 1ère année, LE = linéaire). Approximation honnête, à affiner quand
+// la base aura les vrais taux par type.
+function tauxCompagnieEstime(typeCommission: string | null): number {
+  if (!typeCommission) return 0.3
+  if (typeCommission.startsWith('PA 34')) return 0.34
+  if (typeCommission.startsWith('PA 30')) return 0.3
+  if (typeCommission.startsWith('LE 20')) return 0.2
+  if (typeCommission.startsWith('PS 25')) return 0.25
+  if (typeCommission.startsWith('PS 30')) return 0.3
+  return 0.3
+}
+
+// Manque à gagner mandataire estimé sur une rétractation :
+// cotisation × taux_cie × 12 mois × taux_mandataire
+function comMandataireEstimee(row: RetractationRow): number {
+  if (!row.cotisation_mensuelle) return 0
+  const tauxCie = tauxCompagnieEstime(row.type_commission)
+  const comSociete1a = row.cotisation_mensuelle * tauxCie * 12
+  return comSociete1a * row.taux_mandataire
+}
+
+const ORIGINE_COLORS: Record<string, string> = {
+  Mapapp: '#378ADD',
+  Site: '#1D9E75',
+  Recommandation: '#534AB7',
+  'Back-office': '#64748b',
+  'Multi-équipement': '#BA7517',
+}
+
+function origineCol(o: string | null): string {
+  if (!o) return '#94a3b8'
+  return ORIGINE_COLORS[o] ?? '#94a3b8'
 }
 
 function isInMonth(
@@ -170,6 +212,9 @@ function statutCouleur(pct: number): {
 
 function Mandataires() {
   const { caParCommercial, contrats, loading, error } = useFinancesCtx()
+  const { rows: allCommissionsDetail, loading: loadingDetail } =
+    useCommissionsDetail()
+  const { rows: allRetractations, loading: loadingRetracs } = useRetractations()
   const [selected, setSelected] = useState<Commercial>('Tous')
 
   const now = new Date()
@@ -222,6 +267,52 @@ function Mandataires() {
     if (selected === 'Tous') return []
     return caParCommercial.filter((r) => r.commercial_prenom === selected)
   }, [caParCommercial, selected])
+
+  // Détail des commissions du mois courant, filtré par commercial
+  // sélectionné. Ignore les lignes 'frais' (type_ligne) et tri par
+  // montant_com_societe DESC.
+  const commissionsMois = useMemo<CommissionDetail[]>(() => {
+    return allCommissionsDetail
+      .filter(
+        (r) =>
+          r.annee === curYear &&
+          r.mois === curMonth &&
+          r.type_ligne !== 'frais' &&
+          (selected === 'Tous' || r.commercial_prenom === selected),
+      )
+      .sort((a, b) => b.montant_com_societe - a.montant_com_societe)
+  }, [allCommissionsDetail, curYear, curMonth, selected])
+
+  // Total mandataire du mois (filtre commercial respecté)
+  const totalMandataireMois = useMemo(
+    () => commissionsMois.reduce((s, r) => s + r.montant_com_mandataire, 0),
+    [commissionsMois],
+  )
+
+  // Rétractations filtrées par commercial sélectionné
+  const retractations = useMemo<RetractationRow[]>(() => {
+    return allRetractations
+      .filter(
+        (r) =>
+          selected === 'Tous' || r.commercial_prenom === selected,
+      )
+      .sort((a, b) => {
+        // Tri par commercial puis date desc
+        const c = (a.commercial_prenom ?? '').localeCompare(
+          b.commercial_prenom ?? '',
+          'fr',
+        )
+        if (c !== 0) return c
+        return (b.date_signature ?? '').localeCompare(a.date_signature ?? '')
+      })
+  }, [allRetractations, selected])
+
+  // Manque à gagner total estimé (mandataire) sur les rétractations filtrées
+  const totalManqueAGagner = useMemo(
+    () =>
+      retractations.reduce((s, r) => s + comMandataireEstimee(r), 0),
+    [retractations],
+  )
 
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
@@ -550,6 +641,388 @@ function Mandataires() {
           </Card>
         </>
       )}
+
+      {/* ── Section 3 : Détail commissions du mois courant ─── */}
+      <Card
+        title={`Détail commissions — ${MOIS_NOMS[curMonth]} ${curYear}${
+          loadingDetail ? ' (chargement…)' : ''
+        }`}
+      >
+        {commissionsMois.length === 0 ? (
+          <Empty label="Aucune commission ce mois-ci." />
+        ) : (
+          <>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#64748b',
+                marginBottom: 10,
+              }}
+            >
+              Total commissions mandataires :{' '}
+              <strong
+                style={{
+                  color: '#00C18B',
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 15,
+                }}
+              >
+                {fmtEur(totalMandataireMois)}
+              </strong>{' '}
+              · {commissionsMois.length} ligne
+              {commissionsMois.length > 1 ? 's' : ''}
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr style={trHead}>
+                    {selected === 'Tous' && <th style={th}>Commercial</th>}
+                    <th style={th}>Client</th>
+                    <th style={th}>Compagnie</th>
+                    <th style={th}>Origine</th>
+                    <th style={th}>Type com.</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Com. société</th>
+                    <th style={{ ...th, textAlign: 'right' }}>
+                      Com. mandataire
+                    </th>
+                    <th style={{ ...th, textAlign: 'right' }}>Frais</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commissionsMois.map((r) => {
+                    const oc = origineCol(r.origine)
+                    const cc = r.commercial_prenom
+                      ? COMM_COLORS[r.commercial_prenom] ?? '#64748b'
+                      : '#94a3b8'
+                    return (
+                      <tr
+                        key={r.id}
+                        style={{ borderTop: '1px solid #f1f5f9' }}
+                      >
+                        {selected === 'Tous' && (
+                          <td
+                            style={{
+                              ...td,
+                              color: cc,
+                              fontWeight: 600,
+                              fontSize: 12,
+                            }}
+                          >
+                            {r.commercial_prenom ?? '—'}
+                          </td>
+                        )}
+                        <td
+                          style={{
+                            ...td,
+                            fontWeight: 600,
+                            color: '#0f172a',
+                          }}
+                        >
+                          {r.client}
+                        </td>
+                        <td style={{ ...td, color: '#475569' }}>
+                          {r.compagnie_assureur ?? '—'}
+                        </td>
+                        <td style={td}>
+                          {r.origine ? (
+                            <span
+                              style={{
+                                background: `${oc}18`,
+                                color: oc,
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {r.origine}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#cbd5e1' }}>—</span>
+                          )}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            color: '#94a3b8',
+                            fontSize: 11,
+                          }}
+                        >
+                          {r.type_commission ?? '—'}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            textAlign: 'right',
+                            fontFamily:
+                              "'JetBrains Mono', ui-monospace, monospace",
+                            color: '#0f172a',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {fmtEur(r.montant_com_societe)}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            textAlign: 'right',
+                            fontFamily:
+                              "'JetBrains Mono', ui-monospace, monospace",
+                            color: '#00C18B',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {fmtEur(r.montant_com_mandataire)}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            textAlign: 'right',
+                            fontFamily:
+                              "'JetBrains Mono', ui-monospace, monospace",
+                            color:
+                              r.montant_frais > 0 ? '#BA7517' : '#cbd5e1',
+                          }}
+                        >
+                          {r.montant_frais > 0
+                            ? fmtEur(r.montant_frais)
+                            : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* ── Section 4 : Bloc informatif instances ─────────── */}
+      <Card title="⚠️ Commissions en instance">
+        <div
+          style={{
+            background: '#fef3c7',
+            border: '1px solid #f59e0b',
+            borderRadius: 8,
+            padding: 14,
+            fontSize: 13,
+            color: '#92400e',
+            lineHeight: 1.6,
+          }}
+        >
+          <strong>Attention :</strong> certains contrats peuvent être en
+          instance auprès des compagnies (litiges, pièces manquantes,
+          dossiers incomplets). Les commissions associées à ces contrats
+          ne sont pas versées tant que l'instance n'est pas résolue.
+          <div
+            style={{ marginTop: 8, fontSize: 12, color: '#78350f' }}
+          >
+            → Consulter la vue <strong>Instances</strong> dans TessAdmin
+            pour le suivi des dossiers en attente.
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Section 5 : Commissions perdues sur rétractations ── */}
+      <Card
+        title={`Commissions perdues — Rétractations${
+          loadingRetracs ? ' (chargement…)' : ''
+        }`}
+      >
+        {retractations.length === 0 ? (
+          <div
+            style={{
+              background: '#dcfce7',
+              border: '1px solid #1D9E7530',
+              borderRadius: 8,
+              padding: 14,
+              fontSize: 13,
+              color: '#15803d',
+              fontWeight: 600,
+            }}
+          >
+            ✓ Aucune rétractation
+            {selected !== 'Tous' ? ` pour ${selected}` : ''}.
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#64748b',
+                marginBottom: 10,
+              }}
+            >
+              Manque à gagner mandataire estimé :{' '}
+              <strong
+                style={{
+                  color: '#E24B4A',
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 15,
+                }}
+              >
+                −{fmtEur(totalManqueAGagner)}
+              </strong>{' '}
+              sur {retractations.length} rétractation
+              {retractations.length > 1 ? 's' : ''}
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr style={trHead}>
+                    {selected === 'Tous' && <th style={th}>Commercial</th>}
+                    <th style={th}>Client</th>
+                    <th style={th}>Compagnie</th>
+                    <th style={th}>Date</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Cotisation</th>
+                    <th style={th}>Origine</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Taux mand.</th>
+                    <th style={{ ...th, textAlign: 'right' }}>
+                      Manque à gagner
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {retractations.map((r) => {
+                    const manque = comMandataireEstimee(r)
+                    const oc = origineCol(r.origine)
+                    const cc = r.commercial_prenom
+                      ? COMM_COLORS[r.commercial_prenom] ?? '#64748b'
+                      : '#94a3b8'
+                    return (
+                      <tr
+                        key={r.contrat_id}
+                        style={{ borderTop: '1px solid #f1f5f9' }}
+                      >
+                        {selected === 'Tous' && (
+                          <td
+                            style={{
+                              ...td,
+                              color: cc,
+                              fontWeight: 600,
+                              fontSize: 12,
+                            }}
+                          >
+                            {r.commercial_prenom ?? '—'}
+                          </td>
+                        )}
+                        <td
+                          style={{
+                            ...td,
+                            fontWeight: 600,
+                            color: '#0f172a',
+                          }}
+                        >
+                          {r.client}
+                        </td>
+                        <td style={{ ...td, color: '#475569' }}>
+                          {r.compagnie_assureur ?? '—'}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            color: '#94a3b8',
+                            fontFamily:
+                              "'JetBrains Mono', ui-monospace, monospace",
+                            fontSize: 11,
+                          }}
+                        >
+                          {r.date_signature
+                            ? new Date(r.date_signature).toLocaleDateString(
+                                'fr-FR',
+                              )
+                            : '—'}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            textAlign: 'right',
+                            fontFamily:
+                              "'JetBrains Mono', ui-monospace, monospace",
+                            color: '#475569',
+                          }}
+                        >
+                          {r.cotisation_mensuelle
+                            ? fmtEur(r.cotisation_mensuelle) + '/m'
+                            : '—'}
+                        </td>
+                        <td style={td}>
+                          {r.origine ? (
+                            <span
+                              style={{
+                                background: `${oc}18`,
+                                color: oc,
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {r.origine}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#cbd5e1' }}>—</span>
+                          )}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            textAlign: 'right',
+                            color: '#64748b',
+                            fontSize: 11,
+                            fontFamily:
+                              "'JetBrains Mono', ui-monospace, monospace",
+                          }}
+                        >
+                          {(r.taux_mandataire * 100).toFixed(0)}%
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            textAlign: 'right',
+                            fontFamily:
+                              "'JetBrains Mono', ui-monospace, monospace",
+                            color: '#E24B4A',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {manque > 0 ? `−${fmtEur(manque)}` : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: '#94a3b8',
+                fontStyle: 'italic',
+              }}
+            >
+              (*) Estimation basée sur la cotisation mensuelle et les taux
+              de commission 1ère année moyens par produit (PA 30/PA 34/PS
+              25/LE 20). Le taux mandataire est calculé serveur depuis
+              l'origine du lead.
+            </div>
+          </>
+        )}
+      </Card>
 
       {/* Référentiel taux mandataires (toujours visible) */}
       <Card title="Référentiel — Taux mandataires">

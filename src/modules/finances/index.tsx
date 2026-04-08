@@ -5,6 +5,7 @@ import { FinancesProvider } from './context/FinancesContext'
 const Dashboard = lazy(() => import('./views/Dashboard'))
 const CA = lazy(() => import('./views/CA'))
 const Mandataires = lazy(() => import('./views/Mandataires'))
+const Portefeuille = lazy(() => import('./views/Portefeuille'))
 const Versements = lazy(() => import('./views/Versements'))
 
 // FinancesProvider wrap tout le module : 1 seul fetch (commissions +
@@ -25,6 +26,7 @@ function FinancesModule() {
           <Route index element={<Dashboard />} />
           <Route path="ca" element={<CA />} />
           <Route path="mandataires" element={<Mandataires />} />
+          <Route path="portefeuille" element={<Portefeuille />} />
           <Route path="versements" element={<Versements />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>

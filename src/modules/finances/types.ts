@@ -41,6 +41,59 @@ export interface CAParCommercial {
   nb_contrats: number
 }
 
+// ── Vue tadmin_v_commissions_detail ───────────────────────────
+export interface CommissionDetail {
+  id: string
+  contrat_id: string
+  annee: number
+  mois: number
+  type_ligne: string | null
+  montant_com_societe: number
+  montant_com_mandataire: number
+  montant_frais: number
+  client: string
+  compagnie_assureur: string | null
+  origine: string | null
+  type_commission: string | null
+  cotisation_mensuelle: number | null
+  frais_service: number | null
+  date_signature: string | null
+  statut_compagnie: string | null
+  commercial_id: string | null
+  commercial_prenom: string | null
+}
+
+// ── Vue tadmin_v_portefeuille ─────────────────────────────────
+export interface PortefeuilleRow {
+  commercial_id: string | null
+  commercial_prenom: string | null
+  contrat_id: string
+  client: string
+  compagnie_assureur: string | null
+  date_signature: string | null
+  date_effet: string | null
+  cotisation_mensuelle: number
+  type_commission: string | null
+  origine: string | null
+  com_lineaire_mensuelle: number
+  com_lineaire_annuelle: number
+}
+
+// ── Vue tadmin_v_retractations ────────────────────────────────
+export interface RetractationRow {
+  contrat_id: string
+  client: string
+  compagnie_assureur: string | null
+  date_signature: string | null
+  cotisation_mensuelle: number | null
+  type_commission: string | null
+  origine: string | null
+  statut_compagnie: string | null
+  commercial_id: string | null
+  commercial_prenom: string | null
+  taux_mandataire: number
+}
+
 // Lecture depuis tadmin_v_versements (vide pour l'instant)
 export interface Versement {
   compagnie: string

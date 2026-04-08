@@ -1,5 +1,12 @@
 import { supabase } from '@/shared/supabase'
-import type { CommissionRow, ContratLean, Versement } from './types'
+import type {
+  CommissionDetail,
+  CommissionRow,
+  ContratLean,
+  PortefeuilleRow,
+  RetractationRow,
+  Versement,
+} from './types'
 
 export async function fetchAllCommissions(): Promise<CommissionRow[]> {
   const { data, error } = await supabase
@@ -27,6 +34,90 @@ export async function fetchContratsLean(): Promise<ContratLean[]> {
     )
   if (error) throw new Error(`tadmin_v_contrats (lean): ${error.message}`)
   return (data ?? []) as ContratLean[]
+}
+
+// ── Vue commissions enrichies (avec contrat + commercial) ────
+export async function fetchCommissionsDetail(): Promise<CommissionDetail[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_commissions_detail')
+    .select('*')
+    .order('annee', { ascending: false })
+    .order('mois', { ascending: false })
+    .order('montant_com_societe', { ascending: false })
+  if (error)
+    throw new Error(`tadmin_v_commissions_detail: ${error.message}`)
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    contrat_id: r.contrat_id as string,
+    annee: Number(r.annee),
+    mois: Number(r.mois),
+    type_ligne: (r.type_ligne as string | null) ?? null,
+    montant_com_societe: Number(r.montant_com_societe) || 0,
+    montant_com_mandataire: Number(r.montant_com_mandataire) || 0,
+    montant_frais: Number(r.montant_frais) || 0,
+    client: (r.client as string | null) ?? '',
+    compagnie_assureur: (r.compagnie_assureur as string | null) ?? null,
+    origine: (r.origine as string | null) ?? null,
+    type_commission: (r.type_commission as string | null) ?? null,
+    cotisation_mensuelle:
+      r.cotisation_mensuelle !== null && r.cotisation_mensuelle !== undefined
+        ? Number(r.cotisation_mensuelle)
+        : null,
+    frais_service:
+      r.frais_service !== null && r.frais_service !== undefined
+        ? Number(r.frais_service)
+        : null,
+    date_signature: (r.date_signature as string | null) ?? null,
+    statut_compagnie: (r.statut_compagnie as string | null) ?? null,
+    commercial_id: (r.commercial_id as string | null) ?? null,
+    commercial_prenom: (r.commercial_prenom as string | null) ?? null,
+  }))
+}
+
+// ── Vue portefeuille (contrats récurrents validés + com 10%) ─
+export async function fetchPortefeuille(): Promise<PortefeuilleRow[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_portefeuille')
+    .select('*')
+  if (error) throw new Error(`tadmin_v_portefeuille: ${error.message}`)
+  return (data ?? []).map((r) => ({
+    commercial_id: (r.commercial_id as string | null) ?? null,
+    commercial_prenom: (r.commercial_prenom as string | null) ?? null,
+    contrat_id: r.contrat_id as string,
+    client: (r.client as string | null) ?? '',
+    compagnie_assureur: (r.compagnie_assureur as string | null) ?? null,
+    date_signature: (r.date_signature as string | null) ?? null,
+    date_effet: (r.date_effet as string | null) ?? null,
+    cotisation_mensuelle: Number(r.cotisation_mensuelle) || 0,
+    type_commission: (r.type_commission as string | null) ?? null,
+    origine: (r.origine as string | null) ?? null,
+    com_lineaire_mensuelle: Number(r.com_lineaire_mensuelle) || 0,
+    com_lineaire_annuelle: Number(r.com_lineaire_annuelle) || 0,
+  }))
+}
+
+// ── Vue rétractations + taux mandataire calculé serveur ──────
+export async function fetchRetractations(): Promise<RetractationRow[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_retractations')
+    .select('*')
+  if (error) throw new Error(`tadmin_v_retractations: ${error.message}`)
+  return (data ?? []).map((r) => ({
+    contrat_id: r.contrat_id as string,
+    client: (r.client as string | null) ?? '',
+    compagnie_assureur: (r.compagnie_assureur as string | null) ?? null,
+    date_signature: (r.date_signature as string | null) ?? null,
+    cotisation_mensuelle:
+      r.cotisation_mensuelle !== null && r.cotisation_mensuelle !== undefined
+        ? Number(r.cotisation_mensuelle)
+        : null,
+    type_commission: (r.type_commission as string | null) ?? null,
+    origine: (r.origine as string | null) ?? null,
+    statut_compagnie: (r.statut_compagnie as string | null) ?? null,
+    commercial_id: (r.commercial_id as string | null) ?? null,
+    commercial_prenom: (r.commercial_prenom as string | null) ?? null,
+    taux_mandataire: Number(r.taux_mandataire) || 0.25,
+  }))
 }
 
 export async function fetchVersements(): Promise<Versement[]> {
