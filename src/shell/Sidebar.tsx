@@ -74,6 +74,7 @@ export function Sidebar() {
   const [openModule, setOpenModule] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [instancesBadge, setInstancesBadge] = useState<number>(0)
 
   // visible mémoïsé pour éviter de re-déclencher useEffect à chaque render
   const visible = useMemo(
@@ -86,6 +87,26 @@ export function Sidebar() {
     const active = visible.find((m) => isActive(m, location.pathname))
     if (active) setOpenModule(active.path)
   }, [location.pathname, visible])
+
+  // Badge instances : fetch léger du KPI tadmin_v_kpis.instances_ouvertes
+  // à chaque navigation dans /admin/*. Pas de polling — on rafraîchit
+  // sur navigation, ce qui suffit pour un signal raisonnablement frais.
+  useEffect(() => {
+    if (!location.pathname.startsWith('/admin')) return
+    let cancelled = false
+    void supabase
+      .from('tadmin_v_kpis')
+      .select('instances_ouvertes')
+      .maybeSingle<{ instances_ouvertes: number | null }>()
+      .then(({ data }) => {
+        if (cancelled) return
+        const n = Number(data?.instances_ouvertes ?? 0)
+        setInstancesBadge(isNaN(n) ? 0 : n)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname])
 
   function handleToggle(path: string) {
     setOpenModule((prev) => (prev === path ? null : path))
@@ -251,12 +272,15 @@ export function Sidebar() {
                   <div style={{ marginTop: 4, marginBottom: 6 }}>
                     {ADMIN_LINKS.map((sl) => {
                       const slActive = location.pathname === sl.path
+                      const showBadge =
+                        sl.path === '/admin/instances' && instancesBadge > 0
                       return (
                         <Link
                           key={sl.path}
                           to={sl.path}
                           style={{
-                            display: 'block',
+                            display: 'flex',
+                            alignItems: 'center',
                             padding: '7px 12px 7px 20px',
                             borderRadius: 5,
                             color: slActive ? '#fff' : '#94a3b8',
@@ -269,7 +293,24 @@ export function Sidebar() {
                             marginBottom: 1,
                           }}
                         >
-                          {sl.label}
+                          <span style={{ flex: 1 }}>{sl.label}</span>
+                          {showBadge && (
+                            <span
+                              style={{
+                                background: '#E24B4A',
+                                color: '#fff',
+                                borderRadius: 999,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                lineHeight: '14px',
+                                minWidth: 16,
+                                textAlign: 'center',
+                              }}
+                            >
+                              {instancesBadge}
+                            </span>
+                          )}
                         </Link>
                       )
                     })}

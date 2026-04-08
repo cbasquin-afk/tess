@@ -1,7 +1,34 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useAdminContrats } from '../context/ContractsContext'
 import { ModalSaisie } from '../components/ModalSaisie'
+import {
+  InlineSelect,
+  type InlineSelectOption,
+} from '../components/InlineSelect'
 import type { TadminContrat } from '../types'
+
+// Options unifiées avec celles du modal-saisie pour cohérence
+const SAISIE_INLINE_OPTIONS: readonly InlineSelectOption[] = [
+  { value: 'NON SAISI', label: 'Non saisi', color: '#888780' },
+  { value: 'EN ATTENTE', label: 'En attente', color: '#BA7517' },
+  { value: 'VALIDE', label: 'Validé', color: '#1D9E75' },
+]
+
+const STATUT_CIE_INLINE_OPTIONS: readonly InlineSelectOption[] = [
+  { value: 'En attente', label: 'En attente', color: '#BA7517' },
+  { value: 'Validé', label: 'Validé', color: '#1D9E75' },
+  { value: 'Instance', label: 'Instance', color: '#E24B4A' },
+  { value: 'Rétracté', label: 'Rétracté', color: '#888780' },
+  { value: 'Résilié', label: 'Résilié', color: '#888780' },
+]
+
+const RESIL_STATUT_INLINE_OPTIONS: readonly InlineSelectOption[] = [
+  { value: 'EN ATTENTE', label: 'En attente', color: '#BA7517' },
+  { value: 'ENVOYÉE', label: 'Envoyée', color: '#378ADD' },
+  { value: 'AR COMPAGNIE', label: 'AR Compagnie', color: '#1D9E75' },
+  { value: 'RAF', label: 'RAF', color: '#1D9E75' },
+  { value: 'REFUSEE', label: 'Refusée', color: '#E24B4A' },
+]
 
 type FilterPill = 'all' | 'sans_statut' | 'resil' | 'sans_saisie'
 
@@ -26,34 +53,6 @@ const COMM_COLORS: Record<string, string> = {
   Cheyenne: '#BA7517',
   Mariam: '#534AB7',
   Christopher: '#1D9E75',
-}
-
-const STATUT_COLORS: Record<string, string> = {
-  'En attente': '#BA7517',
-  Validé: '#1D9E75',
-  Instance: '#E24B4A',
-  Rétracté: '#888780',
-  Résilié: '#888780',
-}
-
-const SAISIE_LABELS: Record<string, string> = {
-  'NON SAISI': 'Non saisi',
-  'EN ATTENTE': 'En attente',
-  VALIDE: 'Validé',
-}
-
-const SAISIE_COLORS: Record<string, string> = {
-  'NON SAISI': '#888780',
-  'EN ATTENTE': '#BA7517',
-  VALIDE: '#1D9E75',
-}
-
-const RESIL_STATUT_COLORS: Record<string, string> = {
-  'EN ATTENTE': '#BA7517',
-  ENVOYÉE: '#378ADD',
-  'AR COMPAGNIE': '#1D9E75',
-  RAF: '#1D9E75',
-  REFUSEE: '#E24B4A',
 }
 
 function fmtDate(iso: string | null): string {
@@ -278,7 +277,7 @@ function Saisie() {
                 />
                 <th style={th}>Résiliation</th>
                 <th style={th}>Lettre envoyée</th>
-                <th style={th}>Date résil.</th>
+                <th style={th}>Preuve dépôt</th>
                 <th style={th}>Accusé récept.</th>
                 <th style={{ ...th, textAlign: 'right' }}>Action</th>
               </tr>
@@ -288,15 +287,6 @@ function Saisie() {
                 const commCol = c.commercial_prenom
                   ? COMM_COLORS[c.commercial_prenom] ?? '#64748b'
                   : '#94a3b8'
-                const statutCol = c.statut_compagnie
-                  ? STATUT_COLORS[c.statut_compagnie] ?? '#888780'
-                  : '#888780'
-                const saisieKey = c.statut_saisie ?? ''
-                const saisieLabel = SAISIE_LABELS[saisieKey] ?? '—'
-                const saisieCol = SAISIE_COLORS[saisieKey] ?? '#94a3b8'
-                const resilCol = c.resil_statut
-                  ? RESIL_STATUT_COLORS[c.resil_statut] ?? '#888780'
-                  : '#888780'
                 return (
                   <tr
                     key={c.id}
@@ -329,66 +319,45 @@ function Saisie() {
                     >
                       {c.commercial_prenom ?? '—'}
                     </td>
+                    {/* Saisie : InlineSelect statut_saisie */}
                     <td style={td}>
-                      {c.statut_saisie ? (
-                        <span
+                      <InlineSelect
+                        contratId={c.id}
+                        field="statut_saisie"
+                        value={c.statut_saisie}
+                        options={SAISIE_INLINE_OPTIONS}
+                      />
+                    </td>
+                    {/* Statut cie : InlineSelect statut_compagnie */}
+                    <td style={td}>
+                      <InlineSelect
+                        contratId={c.id}
+                        field="statut_compagnie"
+                        value={c.statut_compagnie}
+                        options={STATUT_CIE_INLINE_OPTIONS}
+                      />
+                    </td>
+                    {/* Résiliation : InlineSelect resil_statut + sub type_resiliation */}
+                    <td style={td}>
+                      <InlineSelect
+                        contratId={c.id}
+                        field="resil_statut"
+                        value={c.resil_statut}
+                        options={RESIL_STATUT_INLINE_OPTIONS}
+                      />
+                      {c.type_resiliation && (
+                        <div
                           style={{
-                            background: `${saisieCol}18`,
-                            color: saisieCol,
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 600,
+                            fontSize: 10,
+                            color: '#94a3b8',
+                            marginTop: 2,
                           }}
                         >
-                          {saisieLabel}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#cbd5e1' }}>—</span>
+                          {c.type_resiliation}
+                        </div>
                       )}
                     </td>
-                    <td style={td}>
-                      {c.statut_compagnie ? (
-                        <span
-                          style={{
-                            background: `${statutCol}18`,
-                            color: statutCol,
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 600,
-                          }}
-                        >
-                          {c.statut_compagnie}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#cbd5e1' }}>—</span>
-                      )}
-                    </td>
-                    <td
-                      style={{
-                        ...td,
-                        color: '#475569',
-                        fontSize: 11,
-                      }}
-                    >
-                      {c.type_resiliation ?? '—'}
-                    </td>
-                    <td style={td}>
-                      {c.resil_statut ? (
-                        <span
-                          style={{
-                            color: resilCol,
-                            fontSize: 11,
-                            fontWeight: 600,
-                          }}
-                        >
-                          {c.resil_statut}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#cbd5e1' }}>—</span>
-                      )}
-                    </td>
+                    {/* Lettre envoyée : date d'envoi */}
                     <td
                       style={{
                         ...td,
@@ -397,23 +366,76 @@ function Saisie() {
                         fontSize: 11,
                       }}
                     >
-                      {fmtDate(c.date_resiliation)}
+                      {fmtDate(c.resil_date_envoi)}
                     </td>
-                    <td
-                      style={{
-                        ...td,
-                        color: c.resil_date_ar ? '#1D9E75' : '#94a3b8',
-                        fontFamily: 'ui-monospace, monospace',
-                        fontSize: 11,
-                      }}
-                    >
-                      {c.resil_date_ar ? `✓ ${fmtDate(c.resil_date_ar)}` : '—'}
+                    {/* Preuve dépôt : lien PDF resil_url_depot */}
+                    <td style={td}>
+                      {c.resil_url_depot ? (
+                        <a
+                          href={c.resil_url_depot}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            color: '#378ADD',
+                            textDecoration: 'none',
+                            fontSize: 11,
+                            fontFamily: 'ui-monospace, monospace',
+                            borderBottom: '1px dashed #378ADD',
+                          }}
+                          title="Justificatif de dépôt"
+                        >
+                          📎{' '}
+                          {c.resil_date_envoi
+                            ? fmtDate(c.resil_date_envoi)
+                            : 'Voir'}
+                        </a>
+                      ) : (
+                        <span style={{ color: '#cbd5e1' }}>—</span>
+                      )}
+                    </td>
+                    {/* Accusé récept : lien resil_url_ar ou date avec ✓ */}
+                    <td style={td}>
+                      {c.resil_date_ar ? (
+                        c.resil_url_ar ? (
+                          <a
+                            href={c.resil_url_ar}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              color: '#1D9E75',
+                              textDecoration: 'none',
+                              fontSize: 11,
+                              fontFamily: 'ui-monospace, monospace',
+                              fontWeight: 600,
+                              borderBottom: '1px dashed #1D9E75',
+                            }}
+                            title="Accusé de réception"
+                          >
+                            ✓ {fmtDate(c.resil_date_ar)}
+                          </a>
+                        ) : (
+                          <span
+                            style={{
+                              color: '#1D9E75',
+                              fontSize: 11,
+                              fontFamily: 'ui-monospace, monospace',
+                              fontWeight: 600,
+                            }}
+                          >
+                            ✓ {fmtDate(c.resil_date_ar)}
+                          </span>
+                        )
+                      ) : (
+                        <span style={{ color: '#cbd5e1' }}>—</span>
+                      )}
                     </td>
                     <td style={{ ...td, textAlign: 'right' }}>
                       <button
                         type="button"
                         onClick={() => setSaisieTarget(c)}
-                        title="Éditer la saisie"
+                        title="Éditer la saisie complète"
                         style={iconBtn}
                       >
                         ✏️

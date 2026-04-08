@@ -173,6 +173,23 @@ export async function deleteAsafCloture(
   if (error) throw new Error(`tadmin_delete_asaf_cloture: ${error.message}`)
 }
 
+// ── Édition cellule en place ──────────────────────────────────
+// RPC générique : update d'un seul champ d'un contrat. Utilisé par
+// les selects inline de la vue Saisie pour modifier statut_saisie /
+// statut_compagnie / resil_statut sans ouvrir de modal.
+export async function updateField(
+  contratId: string,
+  field: string,
+  value: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_update_field', {
+    p_contrat_id: contratId,
+    p_field: field,
+    p_value: value,
+  })
+  if (error) throw new Error(`tadmin_update_field: ${error.message}`)
+}
+
 export async function updateSaisie(p: UpdateSaisieParams): Promise<void> {
   const resilEnvoyee = !!(
     p.resil_statut && p.resil_statut !== 'EN ATTENTE'

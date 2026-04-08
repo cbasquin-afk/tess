@@ -57,6 +57,7 @@ export interface TadminContrat {
   resil_date_envoi: string | null
   resil_date_ar: string | null
   resil_url_depot: string | null
+  resil_url_ar: string | null
   type_contrat: string | null
   frais_service: number | null
   commission_totale_prevue: number | null
