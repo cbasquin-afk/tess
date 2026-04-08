@@ -5,7 +5,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from 'react'
-import { useContrats } from '../hooks/useContrats'
+import { useAdminContrats } from '../context/ContractsContext'
 import {
   deleteContrat,
   fetchCommissions,
@@ -130,7 +130,7 @@ function todayISO(): string {
 
 // ── Composant principal ──────────────────────────────────────
 function Contrats() {
-  const { contrats, loading, error, reload } = useContrats()
+  const { contrats, loading, error, reload } = useAdminContrats()
   const [filter, setFilter] = useState<FilterPill>('mois_courant')
   const [commercial, setCommercial] = useState<string>('')
   const [search, setSearch] = useState('')

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
-import { useContrats } from '../hooks/useContrats'
+import { useAdminContrats } from '../context/ContractsContext'
 import { ModalSaisie } from '../components/ModalSaisie'
 import type { TadminContrat } from '../types'
 
@@ -73,7 +73,7 @@ function fmtDate(iso: string | null): string {
 }
 
 function Saisie() {
-  const { contrats, loading, error, reload } = useContrats()
+  const { contrats, loading, error, reload } = useAdminContrats()
   const [filter, setFilter] = useState<FilterPill>('all')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date_signature')

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
-import { useContrats } from '../hooks/useContrats'
+import { useAdminContrats } from '../context/ContractsContext'
 
 const MOIS_NOMS = [
   '',
@@ -55,7 +55,7 @@ interface FraisRow {
 }
 
 function Frais() {
-  const { contrats, loading, error } = useContrats()
+  const { contrats, loading, error } = useAdminContrats()
 
   // Lignes annotées (mois/année du date_signature)
   const annoted = useMemo<FraisRow[]>(() => {
