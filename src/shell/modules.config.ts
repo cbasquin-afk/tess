@@ -31,7 +31,6 @@ export const MODULES: ModuleConfig[] = [
     icon: '💶',
     path: '/finances',
     minRole: 'admin',
-    soon: true,
     loader: () => import('../modules/finances'),
   },
   {

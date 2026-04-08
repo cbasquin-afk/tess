@@ -57,10 +57,18 @@ const ADMIN_LINKS = [
   { path: '/admin/frais', label: '💰 Frais de service' },
 ] as const
 
-// PerfLead et Admin ont une sous-navigation. Si d'autres modules en
-// gagnent une plus tard, on pourra mapper par path.
+const FINANCES_LINKS = [
+  { path: '/finances', label: '📊 Dashboard' },
+  { path: '/finances/ca', label: '📈 CA mensuel' },
+  { path: '/finances/mandataires', label: '👥 Mandataires' },
+] as const
+
+// PerfLead, Admin et Finances ont une sous-navigation. Si d'autres
+// modules en gagnent une plus tard, on pourra mapper par path.
 function hasSublinks(m: ModuleConfig): boolean {
-  return m.path === '/perflead' || m.path === '/admin'
+  return (
+    m.path === '/perflead' || m.path === '/admin' || m.path === '/finances'
+  )
 }
 
 function isActive(m: ModuleConfig, pathname: string): boolean {
@@ -350,6 +358,35 @@ export function Sidebar() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {isOpen && m.path === '/finances' && (
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    {FINANCES_LINKS.map((sl) => {
+                      const slActive = location.pathname === sl.path
+                      return (
+                        <Link
+                          key={sl.path}
+                          to={sl.path}
+                          style={{
+                            display: 'block',
+                            padding: '7px 12px 7px 20px',
+                            borderRadius: 5,
+                            color: slActive ? '#fff' : '#94a3b8',
+                            background: slActive
+                              ? '#1e293b'
+                              : 'transparent',
+                            textDecoration: 'none',
+                            fontSize: 12,
+                            fontWeight: slActive ? 600 : 400,
+                            marginBottom: 1,
+                          }}
+                        >
+                          {sl.label}
+                        </Link>
+                      )
+                    })}
                   </div>
                 )}
               </div>
