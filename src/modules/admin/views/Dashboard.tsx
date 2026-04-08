@@ -85,13 +85,16 @@ function Dashboard() {
       .slice(0, 5)
   }, [contrats])
 
-  // Activité 30 derniers jours par commercial
+  // Activité du mois en cours par commercial
   const activite30j = useMemo(() => {
-    const since = new Date()
-    since.setDate(since.getDate() - 30)
-    const sinceStr = since.toISOString().slice(0, 10)
+    const now = new Date()
+    const firstOfMonth =
+      now.getFullYear() +
+      '-' +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      '-01'
     const recent = contrats.filter(
-      (r) => r.date_signature !== null && r.date_signature >= sinceStr,
+      (r) => r.date_signature !== null && r.date_signature >= firstOfMonth,
     )
     const byComm = new Map<string, { nb: number; com: number }>()
     for (const r of recent) {
@@ -276,14 +279,14 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Activité 30 derniers jours par commercial */}
+      {/* Activité du mois en cours par commercial */}
       <div>
         <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>
-          Activité — 30 derniers jours
+          Activité — mois en cours
         </h2>
         {activite30j.length === 0 ? (
           <Card title="">
-            <Empty label="Aucun contrat sur 30 jours" />
+            <Empty label="Aucun contrat ce mois-ci" />
           </Card>
         ) : (
           <div

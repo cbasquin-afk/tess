@@ -16,13 +16,29 @@ export interface PerfLeadFilters {
   typeContrat: string // '' = toutes verticales
 }
 
-const DEFAULT_FILTERS: PerfLeadFilters = {
-  dateFrom: '',
-  dateTo: '',
-  commercial: '',
-  categorie: '',
-  origine: '',
-  typeContrat: '',
+// Renvoie le 1er et le dernier jour du mois courant au format yyyy-MM-dd.
+// Utilisé pour pré-remplir les filtres dates au mount du Provider.
+function currentMonthRange(): { dateFrom: string; dateTo: string } {
+  const now = new Date()
+  const first = new Date(now.getFullYear(), now.getMonth(), 1)
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  const fmt = (d: Date) =>
+    d.getFullYear() +
+    '-' +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    '-' +
+    String(d.getDate()).padStart(2, '0')
+  return { dateFrom: fmt(first), dateTo: fmt(last) }
+}
+
+function buildDefaults(): PerfLeadFilters {
+  return {
+    ...currentMonthRange(),
+    commercial: '',
+    categorie: '',
+    origine: '',
+    typeContrat: '',
+  }
 }
 
 interface FiltersContextValue {
@@ -38,15 +54,14 @@ interface ProviderProps {
 }
 
 export function PerfLeadFiltersProvider({ children }: ProviderProps) {
-  const [filters, setFiltersState] =
-    useState<PerfLeadFilters>(DEFAULT_FILTERS)
+  const [filters, setFiltersState] = useState<PerfLeadFilters>(buildDefaults)
 
   const setFilters = useCallback((patch: Partial<PerfLeadFilters>) => {
     setFiltersState((prev) => ({ ...prev, ...patch }))
   }, [])
 
   const resetFilters = useCallback(() => {
-    setFiltersState(DEFAULT_FILTERS)
+    setFiltersState(buildDefaults())
   }, [])
 
   const value = useMemo<FiltersContextValue>(
