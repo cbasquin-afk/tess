@@ -59,6 +59,7 @@ export interface TadminContrat {
   resil_url_depot: string | null
   type_contrat: string | null
   frais_service: number | null
+  commission_totale_prevue: number | null
   created_at: string
 }
 

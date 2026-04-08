@@ -90,5 +90,72 @@ export async function syncFromPerflead(): Promise<void> {
   if (error) throw new Error(`tadmin_sync_from_perflead: ${error.message}`)
 }
 
-// Sprints A3+ ajouteront : insertContrat, updateSaisie, updateField,
-// upsertAsafCloture, deleteAsafCloture, etc.
+// ── Contrats ──────────────────────────────────────────────────
+// Signature et nommage des params alignés sur le natif app.html
+// (fonction confirmAdd ligne 991+).
+export interface InsertContratParams {
+  client: string
+  type_contrat: string // 'Mutuelle' par défaut
+  origine: string // 'Mapapp' par défaut
+  commercial_prenom: string | null
+  date_signature: string | null
+  compagnie_assureur: string | null
+  cotisation_mensuelle: number | null
+  recurrent: boolean
+  date_effet: string | null
+  type_commission: string | null
+  frais_service: number | null
+}
+
+export async function insertContrat(p: InsertContratParams): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_insert_contrat', {
+    p_client: p.client,
+    p_type_contrat: p.type_contrat,
+    p_origine: p.origine,
+    p_commercial_prenom: p.commercial_prenom,
+    p_date_signature: p.date_signature,
+    p_compagnie_assureur: p.compagnie_assureur,
+    p_cotisation_mensuelle: p.cotisation_mensuelle,
+    p_recurrent: p.recurrent,
+    p_date_effet: p.date_effet,
+    p_type_commission: p.type_commission,
+    p_frais_service: p.frais_service,
+    p_statut_compagnie: 'En attente',
+    p_source: 'manuel',
+    p_notes: null,
+    p_type_resiliation: null,
+  })
+  if (error) throw new Error(`tadmin_insert_contrat: ${error.message}`)
+}
+
+// ── Saisie / Résiliation ──────────────────────────────────────
+// Aligné sur confirmSaisie() ligne 951+. Note : p_resil_envoyee est
+// dérivé : true si resilStatut existe et n'est pas 'EN ATTENTE'.
+export interface UpdateSaisieParams {
+  contrat_id: string
+  statut_compagnie: string | null
+  statut_saisie: string | null
+  type_resiliation: string | null
+  resil_statut: string | null
+  date_resiliation: string | null
+  date_envoi: string | null
+  date_ar: string | null
+}
+
+export async function updateSaisie(p: UpdateSaisieParams): Promise<void> {
+  const resilEnvoyee = !!(
+    p.resil_statut && p.resil_statut !== 'EN ATTENTE'
+  )
+  const { error } = await supabase.rpc('tadmin_update_saisie', {
+    p_contrat_id: p.contrat_id,
+    p_statut_compagnie: p.statut_compagnie,
+    p_statut_saisie: p.statut_saisie,
+    p_type_resiliation: p.type_resiliation,
+    p_resil_envoyee: resilEnvoyee,
+    p_resil_statut: p.resil_statut,
+    p_date_resiliation: p.date_resiliation,
+    p_date_envoi: p.date_envoi,
+    p_date_ar: p.date_ar,
+  })
+  if (error) throw new Error(`tadmin_update_saisie: ${error.message}`)
+}

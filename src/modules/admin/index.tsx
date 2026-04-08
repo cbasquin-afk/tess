@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 const Dashboard = lazy(() => import('./views/Dashboard'))
 const Instances = lazy(() => import('./views/Instances'))
+const Contrats = lazy(() => import('./views/Contrats'))
 
 function AdminModule() {
   return (
@@ -16,7 +17,8 @@ function AdminModule() {
       <Routes>
         <Route index element={<Dashboard />} />
         <Route path="instances" element={<Instances />} />
-        {/* Sprints A3-A6 ajouteront : contrats, saisie, clotures, frais */}
+        <Route path="contrats" element={<Contrats />} />
+        {/* Sprints A4-A6 ajouteront : saisie, clotures, frais */}
         <Route path="*" element={<Navigate to="" replace />} />
       </Routes>
     </Suspense>
