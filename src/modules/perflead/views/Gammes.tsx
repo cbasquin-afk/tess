@@ -35,20 +35,33 @@ function pmColor(pm: number): string {
   return '#E24B4A'
 }
 
+function fmt(n: number): string {
+  return n.toLocaleString('fr-FR')
+}
+
 function Gammes() {
   const { contrats, loading, error } = useContrats()
-  const gammes = useGammes(contrats)
+  const { byProduit, byFormule } = useGammes(contrats)
 
-  const top8 = useMemo(() => gammes.slice(0, 8), [gammes])
+  const top8 = useMemo(() => byProduit.slice(0, 8), [byProduit])
 
-  const totals = useMemo(() => {
-    const pmVals = contrats
-      .map((c) => c.prime_brute_mensuelle)
-      .filter((v): v is number => typeof v === 'number' && v > 0)
-    const totalMensuel = pmVals.reduce((a, b) => a + b, 0)
-    const pmMoyen = pmVals.length ? totalMensuel / pmVals.length : 0
-    return { pmMoyen, totalMensuel, nbContrats: contrats.length }
+  // Top compagnie : agrégation directe sur les contrats (compagnie ayant le
+  // plus de contrats signés sur la période filtrée)
+  const topCompagnie = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const c of contrats) {
+      if (!c.compagnie) continue
+      counts.set(c.compagnie, (counts.get(c.compagnie) ?? 0) + 1)
+    }
+    let best: { compagnie: string; nb: number } | null = null
+    for (const [compagnie, nb] of counts.entries()) {
+      if (!best || nb > best.nb) best = { compagnie, nb }
+    }
+    return best
   }, [contrats])
+
+  const topProduit = byProduit[0] ?? null
+  const topFormule = byFormule[0] ?? null
 
   const chartData = useMemo<ChartData<'bar' | 'line'>>(
     () => ({
@@ -104,35 +117,44 @@ function Gammes() {
       <div>
         <h1 style={{ margin: 0, fontSize: 24 }}>Gammes</h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Répartition des contrats par produit et compagnie.
+          Répartition des contrats par produit, formule et compagnie.
         </p>
       </div>
 
+      {/* KPIs : Top produit / formule / compagnie + Nb produits */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 14,
         }}
       >
-        <Kpi
-          label="Nb contrats"
-          value={totals.nbContrats.toString()}
+        <KpiTop
+          label="Top produit"
+          value={topProduit?.produit ?? '—'}
+          hint={topProduit ? `${fmt(topProduit.contrats)} contrats` : ''}
+          color="#1D9E75"
+        />
+        <KpiTop
+          label="Top formule"
+          value={topFormule?.formule ?? '—'}
+          hint={
+            topFormule
+              ? `${topFormule.produit}${topFormule.compagnie ? ` · ${topFormule.compagnie}` : ''}`
+              : ''
+          }
           color="#378ADD"
         />
-        <Kpi
-          label="CA mensuel"
-          value={`${totals.totalMensuel.toFixed(0)}€`}
+        <KpiTop
+          label="Top compagnie"
+          value={topCompagnie?.compagnie ?? '—'}
+          hint={topCompagnie ? `${fmt(topCompagnie.nb)} contrats` : ''}
           color="#BA7517"
         />
-        <Kpi
-          label="PM moyen"
-          value={`${totals.pmMoyen.toFixed(0)}€`}
-          color={pmColor(totals.pmMoyen)}
-        />
-        <Kpi
-          label="Nb gammes"
-          value={gammes.length.toString()}
+        <KpiTop
+          label="Nb produits"
+          value={byProduit.length.toString()}
+          hint={`${byFormule.length} formules distinctes`}
         />
       </div>
 
@@ -161,11 +183,8 @@ function Gammes() {
             </tr>
           </thead>
           <tbody>
-            {gammes.map((g) => (
-              <tr
-                key={g.produit}
-                style={{ borderTop: '1px solid #f1f5f9' }}
-              >
+            {byProduit.map((g) => (
+              <tr key={g.produit} style={{ borderTop: '1px solid #f1f5f9' }}>
                 <td style={{ ...td, color: '#0f172a', fontWeight: 500 }}>
                   {g.produit}
                 </td>
@@ -190,6 +209,53 @@ function Gammes() {
                 </td>
                 <td style={{ ...td, textAlign: 'right', color: '#64748b' }}>
                   {g.caMensuel.toFixed(0)}€
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      <Card title="Détail par formule">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr style={{ color: '#64748b', fontSize: 12, fontWeight: 600 }}>
+              <th style={th}>Produit</th>
+              <th style={th}>Formule</th>
+              <th style={th}>Compagnie</th>
+              <th style={th}>Nb</th>
+              <th style={{ ...th, textAlign: 'right' }}>Part</th>
+              <th style={{ ...th, textAlign: 'right' }}>PM moyen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byFormule.map((f, i) => (
+              <tr
+                key={`${f.produit}-${f.formule}-${f.compagnie ?? ''}-${i}`}
+                style={{ borderTop: '1px solid #f1f5f9' }}
+              >
+                <td style={{ ...td, color: '#475569' }}>{f.produit}</td>
+                <td style={{ ...td, color: '#0f172a', fontWeight: 500 }}>
+                  {f.formule}
+                </td>
+                <td style={{ ...td, color: '#64748b' }}>
+                  {f.compagnie ?? '—'}
+                </td>
+                <td style={{ ...td, color: '#1D9E75', fontWeight: 600 }}>
+                  {f.contrats}
+                </td>
+                <td style={{ ...td, textAlign: 'right', color: '#64748b' }}>
+                  {f.pctContrats.toFixed(1)}%
+                </td>
+                <td
+                  style={{
+                    ...td,
+                    textAlign: 'right',
+                    color: pmColor(f.pmMoyen),
+                    fontWeight: 600,
+                  }}
+                >
+                  {f.pmMoyen > 0 ? `${f.pmMoyen.toFixed(0)}€` : '—'}
                 </td>
               </tr>
             ))}
@@ -223,15 +289,14 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   )
 }
 
-function Kpi({
-  label,
-  value,
-  color,
-}: {
+interface KpiTopProps {
   label: string
   value: string
+  hint?: string
   color?: string
-}) {
+}
+
+function KpiTop({ label, value, hint, color }: KpiTopProps) {
   return (
     <div
       style={{
@@ -246,14 +311,21 @@ function Kpi({
       </div>
       <div
         style={{
-          fontSize: 26,
+          fontSize: 18,
           fontWeight: 700,
-          margin: '6px 0 2px',
+          margin: '6px 0 4px',
           color: color ?? '#0f172a',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
+        title={value}
       >
         {value}
       </div>
+      {hint && (
+        <div style={{ color: '#94a3b8', fontSize: 12 }}>{hint}</div>
+      )}
     </div>
   )
 }

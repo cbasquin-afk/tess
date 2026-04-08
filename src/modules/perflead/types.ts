@@ -155,6 +155,45 @@ export interface GammeStats {
   pctContrats: number
 }
 
+export interface GammeFormuleStats {
+  produit: string
+  formule: string
+  compagnie: string | null
+  contrats: number
+  pctContrats: number
+  pmMoyen: number
+}
+
+export type TelType = 'fixe' | 'mobile' | 'inconnu'
+
+export interface TelGroupStats {
+  type: TelType
+  count: number
+  pctTotal: number
+  contrats: number
+  txTransfo: number
+  txDecroches: number
+}
+
+export interface DeptStats {
+  dept: string
+  total: number
+  contrats: number
+  nrp: number
+  txDecroches: number
+  txTransfo: number
+  pmMoyen: number
+  partLeads: number
+}
+
+export interface AnalyseResult {
+  fixe: TelGroupStats
+  mobile: TelGroupStats
+  inconnu: TelGroupStats
+  totalLeads: number
+  depts: DeptStats[]
+}
+
 export type AlerteType = 'NRP_relance' | 'en_cours_bloque' | 'lead_froid'
 
 export interface AlerteLead {
