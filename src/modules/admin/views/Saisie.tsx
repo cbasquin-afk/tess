@@ -5,6 +5,7 @@ import {
   InlineSelect,
   type InlineSelectOption,
 } from '../components/InlineSelect'
+import { ClientCell } from '../components/ClientCell'
 import type { TadminContrat } from '../types'
 
 // Options unifiées avec celles du modal-saisie pour cohérence
@@ -292,14 +293,8 @@ function Saisie() {
                     key={c.id}
                     style={{ borderTop: '1px solid #f1f5f9' }}
                   >
-                    <td
-                      style={{
-                        ...td,
-                        fontWeight: 600,
-                        color: '#0f172a',
-                      }}
-                    >
-                      {c.client}
+                    <td style={td}>
+                      <ClientCell name={c.client} />
                     </td>
                     <td style={{ ...td, color: '#94a3b8' }}>
                       {fmtDate(c.date_signature)}
@@ -362,7 +357,7 @@ function Saisie() {
                       style={{
                         ...td,
                         color: '#94a3b8',
-                        fontFamily: 'ui-monospace, monospace',
+                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                         fontSize: 11,
                       }}
                     >
@@ -380,7 +375,7 @@ function Saisie() {
                             color: '#378ADD',
                             textDecoration: 'none',
                             fontSize: 11,
-                            fontFamily: 'ui-monospace, monospace',
+                            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                             borderBottom: '1px dashed #378ADD',
                           }}
                           title="Justificatif de dépôt"
@@ -407,7 +402,7 @@ function Saisie() {
                               color: '#1D9E75',
                               textDecoration: 'none',
                               fontSize: 11,
-                              fontFamily: 'ui-monospace, monospace',
+                              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                               fontWeight: 600,
                               borderBottom: '1px dashed #1D9E75',
                             }}
@@ -420,7 +415,7 @@ function Saisie() {
                             style={{
                               color: '#1D9E75',
                               fontSize: 11,
-                              fontFamily: 'ui-monospace, monospace',
+                              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                               fontWeight: 600,
                             }}
                           >

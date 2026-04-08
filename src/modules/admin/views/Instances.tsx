@@ -1,6 +1,7 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useInstances } from '../hooks/useInstances'
 import { resolveInstance } from '../api'
+import { ClientCell } from '../components/ClientCell'
 import type { TadminInstance } from '../types'
 
 type Filter = 'all' | 'urgent' | 'ASAF' | 'FMA' | 'SMATIS' | 'VERALTI'
@@ -297,14 +298,8 @@ function Instances() {
                     key={r.id}
                     style={{ borderTop: '1px solid #f1f5f9' }}
                   >
-                    <td
-                      style={{
-                        ...td,
-                        fontWeight: 500,
-                        color: '#0f172a',
-                      }}
-                    >
-                      {r.client_nom}
+                    <td style={td}>
+                      <ClientCell name={r.client_nom} />
                     </td>
                     <td style={td}>
                       <span
@@ -345,7 +340,7 @@ function Instances() {
                         textAlign: 'right',
                         color: dCol,
                         fontWeight: 700,
-                        fontFamily: 'ui-monospace, monospace',
+                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                       }}
                     >
                       {joursDisplay(r.jours_restants)}

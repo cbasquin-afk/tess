@@ -265,7 +265,7 @@ function Dashboard() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        fontFamily: 'ui-monospace, monospace',
+                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                         color: '#0f172a',
                       }}
                     >
@@ -343,7 +343,7 @@ function Kpi({ label, value, hint, color }: KpiProps) {
           fontWeight: 700,
           margin: '6px 0 2px',
           color: color ?? '#0f172a',
-          fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+          fontFamily: "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace",
         }}
       >
         {value}

@@ -13,11 +13,21 @@ body,
 }
 
 body {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   background: #f8fafc;
   color: #0f172a;
+}
+
+/* Police monospace pour les valeurs numériques (KPIs, montants, dates).
+   Utilisée via font-family: ui-monospace, ... dans les composants. */
+code,
+kbd,
+samp,
+pre {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas,
+    monospace;
 }
 
 a {

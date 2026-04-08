@@ -14,6 +14,7 @@ import {
 } from '../api'
 import type { TadminCommission, TadminContrat } from '../types'
 import { ModalSaisie } from '../components/ModalSaisie'
+import { ClientCell } from '../components/ClientCell'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
@@ -394,14 +395,8 @@ function Contrats() {
                       cursor: 'pointer',
                     }}
                   >
-                    <td
-                      style={{
-                        ...td,
-                        fontWeight: 600,
-                        color: '#0f172a',
-                      }}
-                    >
-                      {c.client}
+                    <td style={td}>
+                      <ClientCell name={c.client} />
                     </td>
                     <td style={{ ...td, color: '#475569' }}>
                       {c.compagnie_assureur ?? '—'}
@@ -428,7 +423,7 @@ function Contrats() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        fontFamily: 'ui-monospace, monospace',
+                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                         color: '#0f172a',
                       }}
                     >
@@ -478,7 +473,7 @@ function Contrats() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        fontFamily: 'ui-monospace, monospace',
+                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                         color:
                           (c.commission_generee ?? 0) > 0
                             ? '#1D9E75'
@@ -1198,7 +1193,7 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
                       <td
                         style={{
                           padding: '6px 8px 6px 0',
-                          fontFamily: 'ui-monospace, monospace',
+                          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                           color: '#475569',
                         }}
                       >
@@ -1209,7 +1204,7 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
                           padding: '6px 8px 6px 0',
                           textAlign: 'right',
                           color: '#1D9E75',
-                          fontFamily: 'ui-monospace, monospace',
+                          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                           fontWeight: 600,
                         }}
                       >
@@ -1219,7 +1214,7 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
                         style={{
                           padding: '6px 8px 6px 0',
                           textAlign: 'right',
-                          fontFamily: 'ui-monospace, monospace',
+                          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                           color: '#94a3b8',
                         }}
                       >

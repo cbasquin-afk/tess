@@ -197,7 +197,7 @@ function Clotures() {
                       ...td,
                       fontWeight: 700,
                       color: '#0f172a',
-                      fontFamily: 'ui-monospace, monospace',
+                      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                     }}
                   >
                     {c.annee}
@@ -209,7 +209,7 @@ function Clotures() {
                     style={{
                       ...td,
                       color: '#0f172a',
-                      fontFamily: 'ui-monospace, monospace',
+                      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                     }}
                   >
                     {fmtDate(c.date_cloture)}

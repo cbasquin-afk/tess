@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { MODULES } from './modules.config'
 
@@ -9,9 +10,21 @@ function buildBreadcrumb(pathname: string): string[] {
   return [head, ...segs.slice(1)]
 }
 
+function formatToday(d: Date): string {
+  return d.toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 export function Topbar() {
   const location = useLocation()
   const crumbs = buildBreadcrumb(location.pathname)
+  // Calculé une seule fois au mount du shell. Si l'app reste ouverte
+  // plus de 24h, la date sera obsolète d'un jour — accepté pour XS.
+  const today = useMemo(() => formatToday(new Date()), [])
 
   return (
     <header
@@ -37,6 +50,17 @@ export function Topbar() {
             </span>
           </span>
         ))}
+      </div>
+
+      <div
+        style={{
+          fontSize: 11,
+          color: '#94a3b8',
+          fontWeight: 500,
+          textTransform: 'capitalize',
+        }}
+      >
+        {today}
       </div>
 
       <button

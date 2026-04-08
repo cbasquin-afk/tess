@@ -247,7 +247,7 @@ function Frais() {
                     style={{
                       ...td,
                       color: '#94a3b8',
-                      fontFamily: 'ui-monospace, monospace',
+                      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                     }}
                   >
                     {fmtDate(r.date_signature)}
@@ -258,7 +258,7 @@ function Frais() {
                       textAlign: 'right',
                       color: '#00C18B',
                       fontWeight: 600,
-                      fontFamily: 'ui-monospace, monospace',
+                      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                     }}
                   >
                     {fmtEur(r.frais_service)}
@@ -267,7 +267,7 @@ function Frais() {
                     style={{
                       ...td,
                       color: '#94a3b8',
-                      fontFamily: 'ui-monospace, monospace',
+                      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                     }}
                   >
                     {r.sigMois && r.sigAnnee
@@ -295,7 +295,7 @@ function Frais() {
                     textAlign: 'right',
                     color: '#00C18B',
                     fontWeight: 700,
-                    fontFamily: 'ui-monospace, monospace',
+                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                   }}
                 >
                   {fmtEur(total)}
