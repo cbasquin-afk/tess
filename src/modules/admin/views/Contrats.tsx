@@ -13,6 +13,7 @@ import {
   type InsertContratParams,
 } from '../api'
 import type { TadminCommission, TadminContrat } from '../types'
+import { ModalSaisie } from '../components/ModalSaisie'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
@@ -139,6 +140,7 @@ function Contrats() {
   const [addOpen, setAddOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<TadminContrat | null>(null)
   const [detailTarget, setDetailTarget] = useState<TadminContrat | null>(null)
+  const [saisieTarget, setSaisieTarget] = useState<TadminContrat | null>(null)
 
   // Tri client-side
   const sorted = useMemo<TadminContrat[]>(() => {
@@ -511,13 +513,9 @@ function Contrats() {
                     >
                       <button
                         type="button"
-                        title="Saisie & résiliation (Sprint A4)"
-                        disabled
-                        style={{
-                          ...iconBtn,
-                          opacity: 0.35,
-                          cursor: 'not-allowed',
-                        }}
+                        onClick={() => setSaisieTarget(c)}
+                        title="Saisie & résiliation"
+                        style={iconBtn}
                       >
                         ✏️
                       </button>
@@ -562,6 +560,16 @@ function Contrats() {
         <PanelDetail
           contrat={detailTarget}
           onClose={() => setDetailTarget(null)}
+        />
+      )}
+      {saisieTarget && (
+        <ModalSaisie
+          contrat={saisieTarget}
+          onClose={() => setSaisieTarget(null)}
+          onSuccess={() => {
+            setSaisieTarget(null)
+            void reload()
+          }}
         />
       )}
     </div>

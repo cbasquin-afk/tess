@@ -142,6 +142,37 @@ export interface UpdateSaisieParams {
   date_ar: string | null
 }
 
+// ── Clôtures ASAF ─────────────────────────────────────────────
+export interface UpsertAsafClotureParams {
+  annee: number
+  mois: number
+  date_cloture: string | null
+  note: string | null
+}
+
+export async function upsertAsafCloture(
+  p: UpsertAsafClotureParams,
+): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_upsert_asaf_cloture', {
+    p_annee: p.annee,
+    p_mois: p.mois,
+    p_date_cloture: p.date_cloture,
+    p_note: p.note,
+  })
+  if (error) throw new Error(`tadmin_upsert_asaf_cloture: ${error.message}`)
+}
+
+export async function deleteAsafCloture(
+  annee: number,
+  mois: number,
+): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_delete_asaf_cloture', {
+    p_annee: annee,
+    p_mois: mois,
+  })
+  if (error) throw new Error(`tadmin_delete_asaf_cloture: ${error.message}`)
+}
+
 export async function updateSaisie(p: UpdateSaisieParams): Promise<void> {
   const resilEnvoyee = !!(
     p.resil_statut && p.resil_statut !== 'EN ATTENTE'
