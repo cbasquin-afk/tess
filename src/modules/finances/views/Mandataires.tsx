@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useFinances } from '../hooks/useFinances'
+import { useFinancesCtx } from '../context/FinancesContext'
 import type { CAParCommercial, ContratLean } from '../types'
 
 const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
@@ -169,7 +169,7 @@ function statutCouleur(pct: number): {
 }
 
 function Mandataires() {
-  const { caParCommercial, contrats, loading, error } = useFinances()
+  const { caParCommercial, contrats, loading, error } = useFinancesCtx()
   const [selected, setSelected] = useState<Commercial>('Tous')
 
   const now = new Date()

@@ -11,7 +11,7 @@ import {
   type ChartOptions,
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
-import { useFinances } from '../hooks/useFinances'
+import { useFinancesCtx } from '../context/FinancesContext'
 import type { CAMensuel, CAParCommercial } from '../types'
 
 ChartJS.register(
@@ -62,7 +62,7 @@ function fmtMois(annee: number, mois: number): string {
 }
 
 function Dashboard() {
-  const { caMensuel, caParCommercial, loading, error } = useFinances()
+  const { caMensuel, caParCommercial, loading, error } = useFinancesCtx()
 
   // Mois courant calculé en heure locale
   const now = new Date()

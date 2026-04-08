@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
-import { useFinances } from '../hooks/useFinances'
+import { useFinancesCtx } from '../context/FinancesContext'
 import type { CAMensuel } from '../types'
 
 const MOIS_NOMS = [
@@ -45,7 +45,7 @@ interface AggregatedRow {
 }
 
 function CA() {
-  const { caMensuel, loading, error } = useFinances()
+  const { caMensuel, loading, error } = useFinancesCtx()
   const [mode, setMode] = useState<ViewMode>('mensuel')
   const [annee, setAnnee] = useState<number>(() => new Date().getFullYear())
 

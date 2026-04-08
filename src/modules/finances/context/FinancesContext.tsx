@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { fetchAllCommissions, fetchContratsLean } from '../api'
 import type {
   CAMensuel,
@@ -7,7 +15,7 @@ import type {
   ContratLean,
 } from '../types'
 
-export interface UseFinancesResult {
+interface FinancesCtx {
   commissions: CommissionRow[]
   contrats: ContratLean[]
   contratMap: Map<string, ContratLean>
@@ -15,34 +23,41 @@ export interface UseFinancesResult {
   caParCommercial: CAParCommercial[]
   loading: boolean
   error: string | null
+  reload: () => Promise<void>
 }
 
-export function useFinances(): UseFinancesResult {
+const Ctx = createContext<FinancesCtx | null>(null)
+
+interface ProviderProps {
+  children: ReactNode
+}
+
+export function FinancesProvider({ children }: ProviderProps) {
   const [commissions, setCommissions] = useState<CommissionRow[]>([])
   const [contrats, setContrats] = useState<ContratLean[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
+  const reload = useCallback(async () => {
     setLoading(true)
     setError(null)
-    Promise.all([fetchAllCommissions(), fetchContratsLean()])
-      .then(([coms, cons]) => {
-        if (cancelled) return
-        setCommissions(coms)
-        setContrats(cons)
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
+    try {
+      const [coms, cons] = await Promise.all([
+        fetchAllCommissions(),
+        fetchContratsLean(),
+      ])
+      setCommissions(coms)
+      setContrats(cons)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
 
   // Map id → ContratLean pour join O(1)
   const contratMap = useMemo(() => {
@@ -105,13 +120,38 @@ export function useFinances(): UseFinancesResult {
     )
   }, [commissions, contratMap])
 
-  return {
-    commissions,
-    contrats,
-    contratMap,
-    caMensuel,
-    caParCommercial,
-    loading,
-    error,
+  const value = useMemo<FinancesCtx>(
+    () => ({
+      commissions,
+      contrats,
+      contratMap,
+      caMensuel,
+      caParCommercial,
+      loading,
+      error,
+      reload,
+    }),
+    [
+      commissions,
+      contrats,
+      contratMap,
+      caMensuel,
+      caParCommercial,
+      loading,
+      error,
+      reload,
+    ],
+  )
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+}
+
+export function useFinancesCtx(): FinancesCtx {
+  const ctx = useContext(Ctx)
+  if (!ctx) {
+    throw new Error(
+      'useFinancesCtx doit être utilisé dans un <FinancesProvider>',
+    )
   }
+  return ctx
 }
