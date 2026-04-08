@@ -24,6 +24,7 @@ const PERFLEAD_GROUPS: readonly PerfLeadGroup[] = [
       { path: '/perflead/gammes', label: 'Gammes & Niveaux' },
       { path: '/perflead/ages', label: "Tranches d'âge" },
       { path: '/perflead/commerciaux', label: 'Commerciaux' },
+      { path: '/perflead/entonnoir', label: 'Entonnoir' },
       { path: '/perflead/analyse', label: 'Analyse périodes' },
     ],
   },

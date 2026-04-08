@@ -12,6 +12,7 @@ const Analyse = lazy(() => import('./views/Analyse'))
 const Gammes = lazy(() => import('./views/Gammes'))
 const Ages = lazy(() => import('./views/Ages'))
 const Pipeline = lazy(() => import('./views/Pipeline'))
+const Entonnoir = lazy(() => import('./views/Entonnoir'))
 const Statuts = lazy(() => import('./views/Statuts'))
 const Alertes = lazy(() => import('./views/Alertes'))
 const Personae = lazy(() => import('./views/Personae'))
@@ -41,6 +42,7 @@ function PerfLeadModule() {
             <Route path="gammes" element={<Gammes />} />
             <Route path="ages" element={<Ages />} />
             <Route path="pipeline" element={<Pipeline />} />
+            <Route path="entonnoir" element={<Entonnoir />} />
             <Route path="statuts" element={<Statuts />} />
             <Route path="alertes" element={<Alertes />} />
             <Route path="personae" element={<Personae />} />
