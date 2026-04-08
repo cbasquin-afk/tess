@@ -1,6 +1,32 @@
 import { useMemo } from 'react'
+import { format, parseISO, startOfISOWeek } from 'date-fns'
+import {
+  CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend,
+  LinearScale,
+  LineController,
+  LineElement,
+  PointElement,
+  Tooltip,
+  type ChartData,
+  type ChartOptions,
+} from 'chart.js'
+import { Chart } from 'react-chartjs-2'
 import { useStats } from '../hooks/useStats'
 import type { Lead } from '../types'
+
+ChartJS.register(
+  LineController,
+  LineElement,
+  PointElement,
+  Filler,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+)
 
 const NRP_STATUTS = new Set([
   'Ne répond pas',
@@ -20,6 +46,18 @@ const CAT_COLORS: Record<string, string> = {
   Inexploitable: '#888780',
   Rétracté: '#5F5E5A',
 }
+
+const SERIES_COLORS = {
+  total: '#94a3b8',
+  contrats: '#1D9E75',
+  enCours: '#378ADD',
+  nrp: '#BA7517',
+  perdu: '#E24B4A',
+  inexploitable: '#888780',
+} as const
+
+const MAX_WEEKS = 13
+const MAX_TABLE_ROWS = 500
 
 function fmt(n: number): string {
   return n.toLocaleString('fr-FR')
@@ -44,6 +82,58 @@ function isLeadByteFournisseur(l: Lead): boolean {
   return l.origine === 'MapApp Digital' || !l.origine
 }
 
+// ── Helpers export ──────────────────────────────────────────
+const EXPORT_HEADERS = [
+  'ID Leadbyte',
+  'Statut',
+  'Catégorie',
+  'Commercial',
+  'Tranche',
+  'Date création',
+] as const
+
+function leadToRow(l: Lead): string[] {
+  return [
+    l.leadbyte_id ?? '',
+    l.statut ?? '',
+    l.categorie ?? '',
+    (l.attribution ?? '').split(' ')[0] ?? '',
+    l.tranche_age ?? '',
+    l.date_creation?.slice(0, 10) ?? '',
+  ]
+}
+
+function escapeCsv(v: string): string {
+  return v.includes(',') || v.includes('"') || v.includes('\n')
+    ? `"${v.replace(/"/g, '""')}"`
+    : v
+}
+
+function exportCSV(rows: Lead[], filename: string): void {
+  const lines = [
+    EXPORT_HEADERS.join(','),
+    ...rows.map((l) => leadToRow(l).map(escapeCsv).join(',')),
+  ]
+  const blob = new Blob([lines.join('\n')], {
+    type: 'text/csv;charset=utf-8;',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function copyTSV(rows: Lead[]): Promise<void> {
+  const lines = [
+    EXPORT_HEADERS.join('\t'),
+    ...rows.map((l) => leadToRow(l).join('\t')),
+  ]
+  await navigator.clipboard.writeText(lines.join('\n'))
+}
+
+// ── Composant principal ─────────────────────────────────────
 function Fournisseur() {
   const { leads, contrats, loading, error } = useStats()
 
@@ -93,8 +183,144 @@ function Fournisseur() {
     }
   }, [fournLeads, contrats])
 
+  // ── Chart hebdo : 6 séries sur les 13 dernières semaines ──
+  const weeklyData = useMemo(() => {
+    interface Bucket {
+      weekKey: string
+      weekDate: Date
+      total: number
+      contrats: number
+      enCours: number
+      nrp: number
+      perdu: number
+      inexploitable: number
+    }
+    const byWeek = new Map<string, Bucket>()
+
+    for (const l of fournLeads) {
+      if (!l.date_creation) continue
+      let monday: Date
+      try {
+        monday = startOfISOWeek(parseISO(l.date_creation.slice(0, 10)))
+      } catch {
+        continue
+      }
+      const weekKey = format(monday, 'yyyy-MM-dd')
+      let b = byWeek.get(weekKey)
+      if (!b) {
+        b = {
+          weekKey,
+          weekDate: monday,
+          total: 0,
+          contrats: 0,
+          enCours: 0,
+          nrp: 0,
+          perdu: 0,
+          inexploitable: 0,
+        }
+        byWeek.set(weekKey, b)
+      }
+      b.total += 1
+      // Ordre fidèle au natif : Contrat / En cours / NRP / Perdu / Inexpl.
+      if (l.categorie === 'Contrat') b.contrats += 1
+      else if (l.categorie === 'En cours') b.enCours += 1
+      else if (NRP_STATUTS.has(l.statut)) b.nrp += 1
+      else if (l.categorie === 'Perdu') b.perdu += 1
+      else if (INEXPLOITABLE_STATUTS.has(l.statut)) b.inexploitable += 1
+    }
+
+    return Array.from(byWeek.values())
+      .sort((a, b) => a.weekDate.getTime() - b.weekDate.getTime())
+      .slice(-MAX_WEEKS)
+  }, [fournLeads])
+
+  const chartData = useMemo<ChartData<'line'>>(
+    () => ({
+      labels: weeklyData.map((w) => format(w.weekDate, 'dd/MM')),
+      datasets: [
+        {
+          label: 'Total',
+          data: weeklyData.map((w) => w.total),
+          borderColor: SERIES_COLORS.total,
+          backgroundColor: 'rgba(148, 163, 184, 0.08)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          borderWidth: 2,
+        },
+        {
+          label: 'Contrats',
+          data: weeklyData.map((w) => w.contrats),
+          borderColor: SERIES_COLORS.contrats,
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 4,
+          borderWidth: 2,
+        },
+        {
+          label: 'En cours',
+          data: weeklyData.map((w) => w.enCours),
+          borderColor: SERIES_COLORS.enCours,
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          borderWidth: 2,
+        },
+        {
+          label: 'NRP',
+          data: weeklyData.map((w) => w.nrp),
+          borderColor: SERIES_COLORS.nrp,
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+        },
+        {
+          label: 'Perdu',
+          data: weeklyData.map((w) => w.perdu),
+          borderColor: SERIES_COLORS.perdu,
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+        },
+        {
+          label: 'Inexploitable',
+          data: weeklyData.map((w) => w.inexploitable),
+          borderColor: SERIES_COLORS.inexploitable,
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          borderWidth: 1.5,
+          borderDash: [2, 4],
+        },
+      ],
+    }),
+    [weeklyData],
+  )
+
+  const chartOptions: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      y: { beginAtZero: true },
+      x: { grid: { display: false } },
+    },
+    plugins: { legend: { position: 'bottom' } },
+  }
+
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
+
+  const visibleRows = fournLeads.slice(0, MAX_TABLE_ROWS)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -153,6 +379,34 @@ function Fournisseur() {
         />
       </div>
 
+      {/* Chart hebdo */}
+      <div
+        style={{
+          background: '#fff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          padding: 18,
+        }}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 14 }}>
+            Évolution hebdomadaire — leads fournisseur
+          </h3>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            13 dernières semaines avec leads · 6 séries (total + 5 catégories)
+          </div>
+        </div>
+        <div style={{ height: 260 }}>
+          {weeklyData.length > 0 ? (
+            <Chart type="line" data={chartData} options={chartOptions} />
+          ) : (
+            <div style={{ color: '#94a3b8', fontSize: 13 }}>
+              Aucune donnée hebdo à afficher.
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Tableau leads */}
       <div
         style={{
@@ -168,12 +422,38 @@ function Fournisseur() {
             alignItems: 'center',
             justifyContent: 'space-between',
             marginBottom: 12,
+            gap: 12,
+            flexWrap: 'wrap',
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 14 }}>Leads fournisseur</h3>
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>
-            {fmt(fournLeads.length)} leads · 500 max affichés
-          </span>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 14 }}>Leads fournisseur</h3>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+              {fmt(fournLeads.length)} leads · {MAX_TABLE_ROWS} max affichés
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => {
+                void copyTSV(visibleRows)
+              }}
+              disabled={visibleRows.length === 0}
+              style={btnStyle}
+            >
+              📋 Copier TSV
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                exportCSV(visibleRows, 'leads-fournisseur.csv')
+              }
+              disabled={visibleRows.length === 0}
+              style={btnPrimaryStyle}
+            >
+              ⬇ Export CSV
+            </button>
+          </div>
         </div>
         {fournLeads.length === 0 ? (
           <div style={{ color: '#94a3b8', fontSize: 13 }}>
@@ -195,7 +475,7 @@ function Fournisseur() {
                 </tr>
               </thead>
               <tbody>
-                {fournLeads.slice(0, 500).map((l) => (
+                {visibleRows.map((l) => (
                   <tr
                     key={l.id ?? l.leadbyte_id ?? Math.random()}
                     style={{ borderTop: '1px solid #f1f5f9' }}
@@ -241,6 +521,28 @@ const th: React.CSSProperties = {
   borderBottom: '1px solid #e5e7eb',
 }
 const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
+
+const btnStyle: React.CSSProperties = {
+  background: '#f3f4f6',
+  border: '1px solid #d1d5db',
+  color: '#374151',
+  borderRadius: 6,
+  padding: '5px 12px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const btnPrimaryStyle: React.CSSProperties = {
+  background: '#1f3a8a',
+  border: '1px solid #1f3a8a',
+  color: '#fff',
+  borderRadius: 6,
+  padding: '5px 12px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
 
 interface KpiProps {
   label: string

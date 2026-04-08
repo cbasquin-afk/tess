@@ -224,3 +224,14 @@ export interface PersonaGroup {
   topFormule: string | null
   topCompagnie: string | null
 }
+
+export interface PersonaDeptStats {
+  key: string
+  dept: string
+  trancheAge: string
+  totalLeads: number
+  totalContrats: number
+  txConversion: number
+  pmMoyen: number
+  topProduit: string | null
+}

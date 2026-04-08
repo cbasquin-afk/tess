@@ -2,7 +2,11 @@ import { useMemo } from 'react'
 import { useStats } from '../hooks/useStats'
 import { usePersonae } from '../hooks/usePersonae'
 import { TRANCHES_ORDER } from '../hooks/useAges'
-import type { PersonaGroup, RegimeGroupe } from '../types'
+import type {
+  PersonaDeptStats,
+  PersonaGroup,
+  RegimeGroupe,
+} from '../types'
 
 const GROUPE_COLOR: Record<RegimeGroupe, string> = {
   SECU: '#378ADD',
@@ -21,31 +25,47 @@ function txCellColor(tx: number): string {
 
 function Personae() {
   const { leads, contrats, loading, error } = useStats()
-  const personae = usePersonae(leads, contrats)
+  const { groups, deptAge } = usePersonae(leads, contrats)
+
+  // Top 3 par taux de conversion (≥ 3 contrats pour signifiance)
+  const top3Conv = useMemo(
+    () =>
+      groups
+        .filter((p) => p.totalContrats >= 3)
+        .sort((a, b) => b.txConversion - a.txConversion)
+        .slice(0, 3),
+    [groups],
+  )
+
+  // Top 3 par volume de contrats
+  const top3Volume = useMemo(
+    () => [...groups].sort((a, b) => b.totalContrats - a.totalContrats).slice(0, 3),
+    [groups],
+  )
 
   const top5 = useMemo(
     () =>
-      personae
+      groups
         .filter((p) => p.totalContrats >= 3)
         .sort((a, b) => b.txConversion - a.txConversion)
         .slice(0, 5),
-    [personae],
+    [groups],
   )
   const flop5 = useMemo(
     () =>
-      personae
+      groups
         .filter((p) => p.totalLeads >= 10)
         .sort((a, b) => a.txConversion - b.txConversion)
         .slice(0, 5),
-    [personae],
+    [groups],
   )
 
   // Heatmap : tranche × groupe avec >= 3 leads
   const heatmap = useMemo(() => {
     const m = new Map<string, PersonaGroup>()
-    for (const p of personae) m.set(`${p.groupe}|${p.trancheAge}`, p)
+    for (const p of groups) m.set(`${p.groupe}|${p.trancheAge}`, p)
     return m
-  }, [personae])
+  }, [groups])
 
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
@@ -58,6 +78,17 @@ function Personae() {
           Profils tranches d'âge × régime — repérer les segments qui convertissent.
         </p>
       </div>
+
+      <MedalCards
+        title="Top 3 — Meilleur taux de conversion"
+        subtitle="Segments avec ≥ 3 contrats, triés par tx desc"
+        rows={top3Conv}
+      />
+      <MedalCards
+        title="Top 3 — Plus grand volume de contrats"
+        subtitle="Tous segments confondus, triés par nb contrats desc"
+        rows={top3Volume}
+      />
 
       <PersonaTable
         title="🥇 Top 5 — Profils qui convertissent le mieux"
@@ -159,6 +190,8 @@ function Personae() {
           Cellules avec ≥ 3 leads uniquement. Vert ≥ 15%, orange ≥ 8%, rouge &lt; 8%.
         </div>
       </div>
+
+      <DeptAgeTable rows={deptAge} />
     </div>
   )
 }
@@ -255,6 +288,270 @@ function PersonaTable({ title, rows }: { title: string; rows: PersonaGroup[] }) 
             })}
           </tbody>
         </table>
+      )}
+    </div>
+  )
+}
+
+// ── MedalCards (Top 3 medals) ────────────────────────────────
+const MEDALS = ['🥇', '🥈', '🥉'] as const
+
+interface MedalCardsProps {
+  title: string
+  subtitle?: string
+  rows: PersonaGroup[]
+}
+
+function MedalCards({ title, subtitle, rows }: MedalCardsProps) {
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 10,
+        padding: 18,
+      }}
+    >
+      <div style={{ marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 14 }}>{title}</h3>
+        {subtitle && (
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ color: '#94a3b8', fontSize: 13, fontStyle: 'italic' }}>
+          Pas assez de données pour ce classement.
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {rows.slice(0, 3).map((r, i) => (
+            <MedalCard key={r.key} row={r} medal={MEDALS[i] ?? ''} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MedalCard({ row, medal }: { row: PersonaGroup; medal: string }) {
+  const col = GROUPE_COLOR[row.groupe]
+  const txCol = txCellColor(row.txConversion)
+  return (
+    <div
+      style={{
+        border: `1px solid ${col}30`,
+        borderRadius: 12,
+        padding: 16,
+        background: `${col}08`,
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 14,
+          fontSize: 22,
+        }}
+      >
+        {medal}
+      </div>
+      <div
+        style={{
+          display: 'inline-block',
+          padding: '2px 10px',
+          background: `${col}20`,
+          color: col,
+          fontSize: 11,
+          fontWeight: 700,
+          borderRadius: 12,
+          marginBottom: 8,
+        }}
+      >
+        {row.groupe}
+      </div>
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 700,
+          color: '#0f172a',
+          marginBottom: 2,
+        }}
+      >
+        {row.trancheAge} ans
+      </div>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 12 }}>
+        {row.totalContrats} contrats · {row.totalLeads} leads
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          marginBottom: row.topProduit ? 10 : 0,
+        }}
+      >
+        <div
+          style={{
+            background: 'rgba(255,255,255,0.7)',
+            borderRadius: 6,
+            padding: 8,
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: txCol,
+              lineHeight: 1.2,
+            }}
+          >
+            {row.txConversion.toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 10, color: '#94a3b8' }}>Tx conversion</div>
+        </div>
+        <div
+          style={{
+            background: 'rgba(255,255,255,0.7)',
+            borderRadius: 6,
+            padding: 8,
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: row.pmMoyen >= 100 ? '#1D9E75' : '#64748b',
+              lineHeight: 1.2,
+            }}
+          >
+            {row.pmMoyen > 0 ? `${row.pmMoyen.toFixed(0)}€` : '—'}
+          </div>
+          <div style={{ fontSize: 10, color: '#94a3b8' }}>PM moyen</div>
+        </div>
+      </div>
+      {row.topProduit && (
+        <div
+          style={{
+            paddingTop: 10,
+            borderTop: '1px solid #f1f5f9',
+            fontSize: 11,
+          }}
+        >
+          <div style={{ color: '#94a3b8', marginBottom: 2 }}>
+            Produit phare
+          </div>
+          <div style={{ color: '#475569', fontWeight: 600 }}>
+            {row.topProduit}
+          </div>
+          {row.topFormule && (
+            <div style={{ color: '#94a3b8' }}>
+              {row.topFormule}
+              {row.topCompagnie ? ` · ${row.topCompagnie}` : ''}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── DeptAgeTable ────────────────────────────────────────────
+function DeptAgeTable({ rows }: { rows: PersonaDeptStats[] }) {
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 10,
+        padding: 18,
+      }}
+    >
+      <div style={{ marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 14 }}>
+          Top segments département × tranche d'âge
+        </h3>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+          Min 5 leads et 2 contrats par segment · top 30 par tx conversion desc
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ color: '#94a3b8', fontSize: 13, fontStyle: 'italic' }}>
+          Pas de segment significatif (≥ 5 leads et ≥ 2 contrats).
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table
+            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
+          >
+            <thead>
+              <tr style={{ color: '#64748b', fontSize: 11, fontWeight: 600 }}>
+                <th style={th}>Dépt.</th>
+                <th style={th}>Tranche</th>
+                <th style={{ ...th, textAlign: 'right' }}>Leads</th>
+                <th style={{ ...th, textAlign: 'right' }}>Contrats</th>
+                <th style={{ ...th, textAlign: 'right' }}>Tx conv</th>
+                <th style={{ ...th, textAlign: 'right' }}>PM moyen</th>
+                <th style={th}>Top produit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <td style={{ ...td, fontWeight: 700, color: '#0f172a' }}>
+                    Dép. {r.dept}
+                  </td>
+                  <td style={{ ...td, color: '#475569' }}>{r.trancheAge}</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>
+                    {r.totalLeads}
+                  </td>
+                  <td
+                    style={{
+                      ...td,
+                      textAlign: 'right',
+                      color: '#1D9E75',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {r.totalContrats}
+                  </td>
+                  <td
+                    style={{
+                      ...td,
+                      textAlign: 'right',
+                      color: txCellColor(r.txConversion),
+                      fontWeight: 700,
+                    }}
+                  >
+                    {r.txConversion.toFixed(1)}%
+                  </td>
+                  <td
+                    style={{
+                      ...td,
+                      textAlign: 'right',
+                      color: r.pmMoyen >= 100 ? '#1D9E75' : '#64748b',
+                    }}
+                  >
+                    {r.pmMoyen > 0 ? `${r.pmMoyen.toFixed(0)}€` : '—'}
+                  </td>
+                  <td style={{ ...td, color: '#94a3b8', fontSize: 11 }}>
+                    {r.topProduit ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
