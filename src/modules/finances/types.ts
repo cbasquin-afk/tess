@@ -63,26 +63,25 @@ export interface CommissionDetail {
   commercial_prenom: string | null
 }
 
-// ── Vue tadmin_v_portefeuille (nouvelle structure) ───────────
-// Désormais 1 ligne par mois de renouvellement prévu, source : moteur
-// de calcul Supabase. Anciennes colonnes com_lineaire_* supprimées.
-// Chaque contrat a N lignes (une par mois prévu), avec com_societe et
-// com_mandataire calculés serveur depuis commissions_prevues.
+// ── Vue tadmin_v_portefeuille (structure plate) ─────────────
+// 1 ligne par contrat actif avec agrégats 24 mois + mois courant/suivant.
+// Plus de colonnes annee/mois — les calculs sont faits serveur.
 export interface PortefeuilleRow {
   commercial_id: string | null
   commercial_prenom: string | null
   contrat_id: string
   client: string
   compagnie_assureur: string | null
+  type_commission: string | null
+  cotisation_mensuelle: number | null
   date_signature: string | null
   date_effet: string | null
-  cotisation_mensuelle: number | null
-  type_commission: string | null
+  statut_compagnie: string | null
   origine: string | null
-  annee: number
-  mois: number
-  com_societe: number
-  com_mandataire: number
+  com_societe_24m: number
+  com_mandataire_24m: number
+  com_societe_mois: number
+  com_societe_mois_suivant: number
 }
 
 // ── Vue tadmin_v_retractations ────────────────────────────────
@@ -110,4 +109,54 @@ export interface Versement {
   ecart: number | null
   date_versement: string | null
   notes: string | null
+}
+
+// ── Vue tadmin_v_reprises ────────────────────────────────────
+export interface RepriseRow {
+  id: string
+  contrat_id: string | null
+  client: string
+  compagnie: string | null
+  motif: string | null
+  montant: number
+  annee: number
+  mois: number
+  notes: string | null
+  created_at: string
+  type_contrat: string | null
+  cotisation_mensuelle: number | null
+  type_commission: string | null
+  commercial: string | null
+}
+
+// ── Vue tadmin_v_marge_mensuelle ─────────────────────────────
+export interface MargeMensuelle {
+  annee: number
+  mois: number
+  com_societe: number
+  frais_service: number
+  reprises: number
+  cout_leads: number
+  cout_oggo: number
+  cout_telephonie: number
+  cout_communication: number
+  cout_site: number
+  cout_autre: number
+  total_charges: number
+  marge_nette: number
+  nb_contrats: number
+}
+
+// ── Vue tadmin_v_charges_mensuelles ──────────────────────────
+export interface ChargeMensuelle {
+  id: string
+  annee: number
+  mois: number
+  categorie: string
+  fournisseur: string
+  libelle: string | null
+  montant: number
+  nb_leads: number | null
+  notes: string | null
+  created_at: string
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useFinancesCtx } from '../context/FinancesContext'
 import { useCommissionsDetail } from '../hooks/useCommissionsDetail'
 import { useRetractations } from '../hooks/useRetractations'
+import { tableStyle, trHead, th, thRight, thCenter, td, tdRight, tdCenter, tdMontant, trFooter, tdFooterLabel, tdFooterMontant, trBody, MONO } from '../styles/tableTokens'
 import type {
   CAParCommercial,
   CommissionDetail,
@@ -466,20 +467,21 @@ function Mandataires() {
 
           {/* Indicateurs vs objectifs */}
           <Card title={`Objectifs — ${MOIS_NOMS[curMonth]} ${curYear}`}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: 13,
-              }}
-            >
+            <table style={tableStyle}>
+              <colgroup>
+                <col />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 60 }} />
+              </colgroup>
               <thead>
                 <tr style={trHead}>
                   <th style={th}>Indicateur</th>
-                  <th style={{ ...th, textAlign: 'right' }}>Objectif</th>
-                  <th style={{ ...th, textAlign: 'right' }}>Réalisé</th>
-                  <th style={{ ...th, textAlign: 'right' }}>%</th>
-                  <th style={{ ...th, textAlign: 'center', width: 60 }}>
+                  <th style={thRight}>Objectif</th>
+                  <th style={thRight}>Réalisé</th>
+                  <th style={thRight}>%</th>
+                  <th style={thCenter}>
                     Statut
                   </th>
                 </tr>
@@ -524,29 +526,30 @@ function Mandataires() {
             {historique.length === 0 ? (
               <Empty label="Aucun historique." />
             ) : (
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: 13,
-                }}
-              >
+              <table style={tableStyle}>
+                <colgroup>
+                  <col style={{ width: 160 }} />
+                  <col style={{ width: 100 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 110 }} />
+                </colgroup>
                 <thead>
                   <tr style={trHead}>
                     <th style={th}>Mois</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Nb contrats</th>
-                    <th style={{ ...th, textAlign: 'right' }}>CA société</th>
-                    <th style={{ ...th, textAlign: 'right' }}>
+                    <th style={thRight}>Nb contrats</th>
+                    <th style={thRight}>CA société</th>
+                    <th style={thRight}>
                       CA mandataires
                     </th>
-                    <th style={{ ...th, textAlign: 'right' }}>Frais</th>
+                    <th style={thRight}>Frais</th>
                   </tr>
                 </thead>
                 <tbody>
                   {historique.map((r) => (
                     <tr
                       key={`${r.annee}-${r.mois}`}
-                      style={{ borderTop: '1px solid #f1f5f9' }}
+                      style={trBody}
                     >
                       <td
                         style={{
@@ -559,8 +562,7 @@ function Mandataires() {
                       </td>
                       <td
                         style={{
-                          ...td,
-                          textAlign: 'right',
+                          ...tdRight,
                           color: '#94a3b8',
                         }}
                       >
@@ -568,10 +570,7 @@ function Mandataires() {
                       </td>
                       <td
                         style={{
-                          ...td,
-                          textAlign: 'right',
-                          fontFamily:
-                            "'JetBrains Mono', ui-monospace, monospace",
+                          ...tdMontant,
                           color: '#0f172a',
                           fontWeight: 600,
                         }}
@@ -580,10 +579,7 @@ function Mandataires() {
                       </td>
                       <td
                         style={{
-                          ...td,
-                          textAlign: 'right',
-                          fontFamily:
-                            "'JetBrains Mono', ui-monospace, monospace",
+                          ...tdMontant,
                           color: '#64748b',
                         }}
                       >
@@ -591,10 +587,7 @@ function Mandataires() {
                       </td>
                       <td
                         style={{
-                          ...td,
-                          textAlign: 'right',
-                          fontFamily:
-                            "'JetBrains Mono', ui-monospace, monospace",
+                          ...tdMontant,
                           color: '#BA7517',
                         }}
                       >
@@ -602,34 +595,17 @@ function Mandataires() {
                       </td>
                     </tr>
                   ))}
-                  <tr
-                    style={{
-                      background: '#f8fafc',
-                      borderTop: '2px solid #cbd5e1',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <td style={{ ...td, color: '#0f172a' }}>Total</td>
-                    <td style={{ ...td, textAlign: 'right' }}>
+                  <tr style={trFooter}>
+                    <td style={tdFooterLabel}>Total</td>
+                    <td style={tdRight}>
                       {historique.reduce((s, r) => s + r.nb_contrats, 0)}
                     </td>
-                    <td
-                      style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily:
-                          "'JetBrains Mono', ui-monospace, monospace",
-                        color: '#00C18B',
-                      }}
-                    >
+                    <td style={tdFooterMontant}>
                       {fmtEur(historique.reduce((s, r) => s + r.ca_societe, 0))}
                     </td>
                     <td
                       style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily:
-                          "'JetBrains Mono', ui-monospace, monospace",
+                        ...tdFooterMontant,
                         color: '#64748b',
                       }}
                     >
@@ -639,10 +615,7 @@ function Mandataires() {
                     </td>
                     <td
                       style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily:
-                          "'JetBrains Mono', ui-monospace, monospace",
+                        ...tdFooterMontant,
                         color: '#BA7517',
                       }}
                     >
@@ -677,7 +650,7 @@ function Mandataires() {
               <strong
                 style={{
                   color: '#00C18B',
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontFamily: MONO,
                   fontSize: 15,
                 }}
               >
@@ -687,13 +660,17 @@ function Mandataires() {
               {commissionsMois.length > 1 ? 's' : ''}
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: 13,
-                }}
-              >
+              <table style={tableStyle}>
+                <colgroup>
+                  {selected === 'Tous' && <col style={{ width: 100 }} />}
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 100 }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 90 }} />
+                </colgroup>
                 <thead>
                   <tr style={trHead}>
                     {selected === 'Tous' && <th style={th}>Commercial</th>}
@@ -701,11 +678,11 @@ function Mandataires() {
                     <th style={th}>Compagnie</th>
                     <th style={th}>Origine</th>
                     <th style={th}>Type com.</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Com. société</th>
-                    <th style={{ ...th, textAlign: 'right' }}>
+                    <th style={thRight}>Com. société</th>
+                    <th style={thRight}>
                       Com. mandataire
                     </th>
-                    <th style={{ ...th, textAlign: 'right' }}>Frais</th>
+                    <th style={thRight}>Frais</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -717,7 +694,7 @@ function Mandataires() {
                     return (
                       <tr
                         key={r.id}
-                        style={{ borderTop: '1px solid #f1f5f9' }}
+                        style={trBody}
                       >
                         {selected === 'Tous' && (
                           <td
@@ -772,10 +749,7 @@ function Mandataires() {
                         </td>
                         <td
                           style={{
-                            ...td,
-                            textAlign: 'right',
-                            fontFamily:
-                              "'JetBrains Mono', ui-monospace, monospace",
+                            ...tdMontant,
                             color: '#0f172a',
                             fontWeight: 600,
                           }}
@@ -784,10 +758,7 @@ function Mandataires() {
                         </td>
                         <td
                           style={{
-                            ...td,
-                            textAlign: 'right',
-                            fontFamily:
-                              "'JetBrains Mono', ui-monospace, monospace",
+                            ...tdMontant,
                             color: '#00C18B',
                             fontWeight: 700,
                           }}
@@ -796,10 +767,7 @@ function Mandataires() {
                         </td>
                         <td
                           style={{
-                            ...td,
-                            textAlign: 'right',
-                            fontFamily:
-                              "'JetBrains Mono', ui-monospace, monospace",
+                            ...tdMontant,
                             color:
                               r.montant_frais > 0 ? '#BA7517' : '#cbd5e1',
                           }}
@@ -878,7 +846,7 @@ function Mandataires() {
               <strong
                 style={{
                   color: '#E24B4A',
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontFamily: MONO,
                   fontSize: 15,
                 }}
               >
@@ -888,23 +856,27 @@ function Mandataires() {
               {retractations.length > 1 ? 's' : ''}
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: 13,
-                }}
-              >
+              <table style={tableStyle}>
+                <colgroup>
+                  {selected === 'Tous' && <col style={{ width: 100 }} />}
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 100 }} />
+                  <col style={{ width: 80 }} />
+                  <col style={{ width: 130 }} />
+                </colgroup>
                 <thead>
                   <tr style={trHead}>
                     {selected === 'Tous' && <th style={th}>Commercial</th>}
                     <th style={th}>Client</th>
                     <th style={th}>Compagnie</th>
                     <th style={th}>Date</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Cotisation</th>
+                    <th style={thRight}>Cotisation</th>
                     <th style={th}>Origine</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Taux mand.</th>
-                    <th style={{ ...th, textAlign: 'right' }}>
+                    <th style={thRight}>Taux mand.</th>
+                    <th style={thRight}>
                       Manque à gagner
                     </th>
                   </tr>
@@ -919,7 +891,7 @@ function Mandataires() {
                     return (
                       <tr
                         key={r.contrat_id}
-                        style={{ borderTop: '1px solid #f1f5f9' }}
+                        style={trBody}
                       >
                         {selected === 'Tous' && (
                           <td
@@ -949,8 +921,7 @@ function Mandataires() {
                           style={{
                             ...td,
                             color: '#94a3b8',
-                            fontFamily:
-                              "'JetBrains Mono', ui-monospace, monospace",
+                            fontFamily: MONO,
                             fontSize: 11,
                           }}
                         >
@@ -962,10 +933,7 @@ function Mandataires() {
                         </td>
                         <td
                           style={{
-                            ...td,
-                            textAlign: 'right',
-                            fontFamily:
-                              "'JetBrains Mono', ui-monospace, monospace",
+                            ...tdMontant,
                             color: '#475569',
                           }}
                         >
@@ -993,22 +961,16 @@ function Mandataires() {
                         </td>
                         <td
                           style={{
-                            ...td,
-                            textAlign: 'right',
+                            ...tdMontant,
                             color: '#64748b',
                             fontSize: 11,
-                            fontFamily:
-                              "'JetBrains Mono', ui-monospace, monospace",
                           }}
                         >
                           {(r.taux_mandataire * 100).toFixed(0)}%
                         </td>
                         <td
                           style={{
-                            ...td,
-                            textAlign: 'right',
-                            fontFamily:
-                              "'JetBrains Mono', ui-monospace, monospace",
+                            ...tdMontant,
                             color: '#E24B4A',
                             fontWeight: 700,
                           }}
@@ -1040,23 +1002,22 @@ function Mandataires() {
 
       {/* Référentiel taux mandataires (toujours visible) */}
       <Card title="Référentiel — Taux mandataires">
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 13,
-          }}
-        >
+        <table style={tableStyle}>
+          <colgroup>
+            <col style={{ width: 180 }} />
+            <col style={{ width: 80 }} />
+            <col />
+          </colgroup>
           <thead>
             <tr style={trHead}>
               <th style={th}>Source</th>
-              <th style={{ ...th, textAlign: 'right' }}>Taux</th>
+              <th style={thRight}>Taux</th>
               <th style={th}>Description</th>
             </tr>
           </thead>
           <tbody>
             {REFERENTIEL_TAUX.map((r) => (
-              <tr key={r.source} style={{ borderTop: '1px solid #f1f5f9' }}>
+              <tr key={r.source} style={trBody}>
                 <td
                   style={{
                     ...td,
@@ -1068,11 +1029,9 @@ function Mandataires() {
                 </td>
                 <td
                   style={{
-                    ...td,
-                    textAlign: 'right',
+                    ...tdMontant,
                     color: '#00C18B',
                     fontWeight: 700,
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                   }}
                 >
                   {r.taux}
@@ -1102,23 +1061,19 @@ function ObjectifRow({ label, objectif, realise, format }: ObjectifRowProps) {
   const pct = objectif > 0 ? (realise / objectif) * 100 : 0
   const statut = statutCouleur(pct)
   return (
-    <tr style={{ borderTop: '1px solid #f1f5f9' }}>
+    <tr style={trBody}>
       <td style={{ ...td, fontWeight: 500, color: '#475569' }}>{label}</td>
       <td
         style={{
-          ...td,
-          textAlign: 'right',
+          ...tdMontant,
           color: '#94a3b8',
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
         }}
       >
         {format(objectif)}
       </td>
       <td
         style={{
-          ...td,
-          textAlign: 'right',
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+          ...tdMontant,
           color: '#0f172a',
           fontWeight: 600,
         }}
@@ -1127,15 +1082,14 @@ function ObjectifRow({ label, objectif, realise, format }: ObjectifRowProps) {
       </td>
       <td
         style={{
-          ...td,
-          textAlign: 'right',
+          ...tdRight,
           color: statut.color,
           fontWeight: 700,
         }}
       >
         {pct.toFixed(0)}%
       </td>
-      <td style={{ ...td, textAlign: 'center' }}>
+      <td style={tdCenter}>
         <span
           style={{
             display: 'inline-block',
@@ -1182,7 +1136,7 @@ function Kpi({ label, value, hint, color }: KpiProps) {
           fontWeight: 700,
           margin: '6px 0 2px',
           color: color ?? '#0f172a',
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+          fontFamily: MONO,
         }}
       >
         {value}
@@ -1216,7 +1170,7 @@ function MiniKpi({
       <span style={{ fontSize: 11, color: '#64748b' }}>{label}</span>
       <span
         style={{
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+          fontFamily: MONO,
           fontSize: primary ? 15 : 12,
           fontWeight: primary ? 700 : 600,
           color: primary ? '#00C18B' : '#0f172a',
@@ -1257,17 +1211,5 @@ function Empty({ label }: { label: string }) {
     </div>
   )
 }
-
-const trHead: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: 11,
-  fontWeight: 600,
-}
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '8px 12px 8px 0',
-  borderBottom: '1px solid #e5e7eb',
-}
-const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
 
 export default Mandataires

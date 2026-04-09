@@ -1,6 +1,7 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useVersements } from '../hooks/useVersements'
 import type { Versement } from '../types'
+import { tableStyle, trHead, th, thRight, td, tdMontant, trFooter, tdFooterLabel, tdFooterMontant, trBody, MONO } from '../styles/tableTokens'
 
 const MOIS_NOMS = [
   '',
@@ -282,20 +283,23 @@ function Versements() {
             Aucun versement sur ce filtre.
           </div>
         ) : (
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 13,
-            }}
-          >
+          <table style={tableStyle}>
+            <colgroup>
+              <col style={{ width: 120 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col />
+            </colgroup>
             <thead>
               <tr style={trHead}>
                 <th style={th}>Compagnie</th>
                 <th style={th}>Mois</th>
-                <th style={{ ...th, textAlign: 'right' }}>Versé</th>
-                <th style={{ ...th, textAlign: 'right' }}>Prévu</th>
-                <th style={{ ...th, textAlign: 'right' }}>Écart</th>
+                <th style={thRight}>Versé</th>
+                <th style={thRight}>Prévu</th>
+                <th style={thRight}>Écart</th>
                 <th style={th}>Date versement</th>
                 <th style={th}>Notes</th>
               </tr>
@@ -304,7 +308,7 @@ function Versements() {
               {visible.map((v, i) => (
                 <tr
                   key={`${v.compagnie}-${v.annee}-${v.mois}-${i}`}
-                  style={{ borderTop: '1px solid #f1f5f9' }}
+                  style={trBody}
                 >
                   <td
                     style={{
@@ -320,10 +324,7 @@ function Versements() {
                   </td>
                   <td
                     style={{
-                      ...td,
-                      textAlign: 'right',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
+                      ...tdMontant,
                       color: v.verse !== null ? '#0f172a' : '#cbd5e1',
                       fontWeight: v.verse !== null ? 600 : 400,
                     }}
@@ -332,10 +333,7 @@ function Versements() {
                   </td>
                   <td
                     style={{
-                      ...td,
-                      textAlign: 'right',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
+                      ...tdMontant,
                       color: v.prevu !== null ? '#64748b' : '#cbd5e1',
                     }}
                   >
@@ -343,10 +341,7 @@ function Versements() {
                   </td>
                   <td
                     style={{
-                      ...td,
-                      textAlign: 'right',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
+                      ...tdMontant,
                       color: ecartColor(v.ecart),
                       fontWeight: 700,
                     }}
@@ -359,8 +354,7 @@ function Versements() {
                     style={{
                       ...td,
                       color: '#94a3b8',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
+                      fontFamily: MONO,
                       fontSize: 11,
                     }}
                   >
@@ -382,43 +376,22 @@ function Versements() {
                   </td>
                 </tr>
               ))}
-              <tr
-                style={{
-                  background: '#f8fafc',
-                  borderTop: '2px solid #cbd5e1',
-                  fontWeight: 700,
-                }}
-              >
-                <td colSpan={2} style={{ ...td, color: '#0f172a' }}>
+              <tr style={trFooter}>
+                <td colSpan={2} style={tdFooterLabel}>
                   Total
                 </td>
                 <td
-                  style={{
-                    ...td,
-                    textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                    color: '#0f172a',
-                  }}
+                  style={{ ...tdFooterMontant, color: '#0f172a' }}
                 >
                   {fmtEur(totals.verse)}
                 </td>
                 <td
-                  style={{
-                    ...td,
-                    textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                    color: '#64748b',
-                  }}
+                  style={{ ...tdFooterMontant, color: '#64748b' }}
                 >
                   {fmtEur(totals.prevu)}
                 </td>
                 <td
-                  style={{
-                    ...td,
-                    textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                    color: ecartColor(totals.ecart),
-                  }}
+                  style={{ ...tdFooterMontant, color: ecartColor(totals.ecart) }}
                 >
                   {(totals.ecart > 0 ? '+' : '') + fmtEur(totals.ecart)}
                 </td>
@@ -431,17 +404,5 @@ function Versements() {
     </div>
   )
 }
-
-const trHead: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: 11,
-  fontWeight: 600,
-}
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '8px 12px 8px 0',
-  borderBottom: '1px solid #e5e7eb',
-}
-const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
 
 export default Versements

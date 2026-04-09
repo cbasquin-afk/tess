@@ -5,6 +5,7 @@ import {
   InlineSelect,
   type InlineSelectOption,
 } from '../components/InlineSelect'
+import { InlineInput } from '../components/InlineInput'
 import { ClientCell } from '../components/ClientCell'
 import type { TadminContrat } from '../types'
 
@@ -276,6 +277,7 @@ function Saisie() {
                   sortDir={sortDir}
                   onToggle={toggleSort}
                 />
+                <th style={{ ...th, textAlign: 'right' }}>Frais serv.</th>
                 <th style={th}>Résiliation</th>
                 <th style={th}>Lettre envoyée</th>
                 <th style={th}>Preuve dépôt</th>
@@ -330,6 +332,14 @@ function Saisie() {
                         field="statut_compagnie"
                         value={c.statut_compagnie}
                         options={STATUT_CIE_INLINE_OPTIONS}
+                      />
+                    </td>
+                    {/* Frais de service : InlineInput */}
+                    <td style={{ ...td, textAlign: 'right' }}>
+                      <InlineInput
+                        contratId={c.id}
+                        field="frais_service"
+                        value={c.frais_service}
                       />
                     </td>
                     {/* Résiliation : InlineSelect resil_statut + sub type_resiliation */}

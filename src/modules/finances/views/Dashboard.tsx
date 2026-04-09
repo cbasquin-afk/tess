@@ -12,6 +12,7 @@ import {
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
 import { useFinancesCtx } from '../context/FinancesContext'
+import { tableStyle, trHead, th, thRight, td, tdRight, tdMontant, trFooter, tdFooterLabel, tdFooterMontant, trBody, MONO } from '../styles/tableTokens'
 import type { CAMensuel, CAParCommercial } from '../types'
 
 ChartJS.register(
@@ -230,14 +231,22 @@ function Dashboard() {
           <Empty label="Aucune commission ce mois-ci." />
         ) : (
           <table style={tableStyle}>
+            <colgroup>
+              <col style={{ width: 140 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 70 }} />
+            </colgroup>
             <thead>
               <tr style={trHead}>
                 <th style={th}>Commercial</th>
-                <th style={{ ...th, textAlign: 'right' }}>Nb contrats</th>
-                <th style={{ ...th, textAlign: 'right' }}>CA société</th>
-                <th style={{ ...th, textAlign: 'right' }}>CA mandataires</th>
-                <th style={{ ...th, textAlign: 'right' }}>Frais</th>
-                <th style={{ ...th, textAlign: 'right' }}>%</th>
+                <th style={thRight}>Nb contrats</th>
+                <th style={thRight}>CA société</th>
+                <th style={thRight}>CA mandataires</th>
+                <th style={thRight}>Frais</th>
+                <th style={thRight}>%</th>
               </tr>
             </thead>
             <tbody>
@@ -250,7 +259,7 @@ function Dashboard() {
                 return (
                   <tr
                     key={r.commercial_prenom}
-                    style={{ borderTop: '1px solid #f1f5f9' }}
+                    style={trBody}
                   >
                     <td
                       style={{
@@ -261,15 +270,12 @@ function Dashboard() {
                     >
                       {r.commercial_prenom}
                     </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
+                    <td style={tdRight}>
                       {r.nb_contrats}
                     </td>
                     <td
                       style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily:
-                          "'JetBrains Mono', ui-monospace, monospace",
+                        ...tdMontant,
                         color: '#0f172a',
                         fontWeight: 600,
                       }}
@@ -278,10 +284,7 @@ function Dashboard() {
                     </td>
                     <td
                       style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily:
-                          "'JetBrains Mono', ui-monospace, monospace",
+                        ...tdMontant,
                         color: '#64748b',
                       }}
                     >
@@ -289,10 +292,7 @@ function Dashboard() {
                     </td>
                     <td
                       style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily:
-                          "'JetBrains Mono', ui-monospace, monospace",
+                        ...tdMontant,
                         color: '#94a3b8',
                       }}
                     >
@@ -300,8 +300,7 @@ function Dashboard() {
                     </td>
                     <td
                       style={{
-                        ...td,
-                        textAlign: 'right',
+                        ...tdRight,
                         color: '#94a3b8',
                       }}
                     >
@@ -310,32 +309,17 @@ function Dashboard() {
                   </tr>
                 )
               })}
-              <tr
-                style={{
-                  background: '#f8fafc',
-                  borderTop: '2px solid #cbd5e1',
-                  fontWeight: 700,
-                }}
-              >
-                <td style={{ ...td, color: '#0f172a' }}>Total</td>
-                <td style={{ ...td, textAlign: 'right' }}>
+              <tr style={trFooter}>
+                <td style={tdFooterLabel}>Total</td>
+                <td style={tdRight}>
                   {commCurrentMonth.reduce((s, r) => s + r.nb_contrats, 0)}
                 </td>
-                <td
-                  style={{
-                    ...td,
-                    textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                    color: '#00C18B',
-                  }}
-                >
+                <td style={tdFooterMontant}>
                   {fmtEur(totalSocieteMois)}
                 </td>
                 <td
                   style={{
-                    ...td,
-                    textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                    ...tdFooterMontant,
                     color: '#64748b',
                   }}
                 >
@@ -345,15 +329,13 @@ function Dashboard() {
                 </td>
                 <td
                   style={{
-                    ...td,
-                    textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                    ...tdFooterMontant,
                     color: '#BA7517',
                   }}
                 >
                   {fmtEur(commCurrentMonth.reduce((s, r) => s + r.frais, 0))}
                 </td>
-                <td style={{ ...td, textAlign: 'right' }}>100%</td>
+                <td style={tdRight}>100%</td>
               </tr>
             </tbody>
           </table>
@@ -392,18 +374,25 @@ function Dashboard() {
           <Empty label="Pas de données disponibles." />
         ) : (
           <table style={tableStyle}>
+            <colgroup>
+              <col style={{ width: '20%' }} />
+              {last3Months.map((m) => (
+                <col key={`cg-${m.annee}-${m.mois}`} style={{ width: `${60 / last3Months.length}%` }} />
+              ))}
+              <col style={{ width: '20%' }} />
+            </colgroup>
             <thead>
               <tr style={trHead}>
                 <th style={th}>Commercial</th>
                 {last3Months.map((m) => (
                   <th
                     key={`${m.annee}-${m.mois}`}
-                    style={{ ...th, textAlign: 'right' }}
+                    style={thRight}
                   >
                     {fmtMois(m.annee, m.mois)}
                   </th>
                 ))}
-                <th style={{ ...th, textAlign: 'right', color: '#0f172a' }}>
+                <th style={{ ...thRight, color: '#0f172a' }}>
                   Cumul
                 </th>
               </tr>
@@ -414,7 +403,7 @@ function Dashboard() {
                 return (
                   <tr
                     key={row.commercial}
-                    style={{ borderTop: '1px solid #f1f5f9' }}
+                    style={trBody}
                   >
                     <td
                       style={{
@@ -429,10 +418,7 @@ function Dashboard() {
                       <td
                         key={i}
                         style={{
-                          ...td,
-                          textAlign: 'right',
-                          fontFamily:
-                            "'JetBrains Mono', ui-monospace, monospace",
+                          ...tdMontant,
                           color: v > 0 ? '#0f172a' : '#cbd5e1',
                         }}
                       >
@@ -441,10 +427,7 @@ function Dashboard() {
                     ))}
                     <td
                       style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily:
-                          "'JetBrains Mono', ui-monospace, monospace",
+                        ...tdMontant,
                         color: '#0f172a',
                         fontWeight: 700,
                       }}
@@ -454,36 +437,17 @@ function Dashboard() {
                   </tr>
                 )
               })}
-              <tr
-                style={{
-                  background: '#f8fafc',
-                  borderTop: '2px solid #cbd5e1',
-                  fontWeight: 700,
-                }}
-              >
-                <td style={{ ...td, color: '#0f172a' }}>TOTAL</td>
+              <tr style={trFooter}>
+                <td style={tdFooterLabel}>TOTAL</td>
                 {tdbTotalsByMonth.map((v, i) => (
                   <td
                     key={i}
-                    style={{
-                      ...td,
-                      textAlign: 'right',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
-                      color: '#00C18B',
-                    }}
+                    style={tdFooterMontant}
                   >
                     {fmtEur(v)}
                   </td>
                 ))}
-                <td
-                  style={{
-                    ...td,
-                    textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                    color: '#00C18B',
-                  }}
-                >
+                <td style={tdFooterMontant}>
                   {fmtEur(tdbGrandTotal)}
                 </td>
               </tr>
@@ -534,7 +498,7 @@ function Kpi({ label, value, hint, color }: KpiProps) {
           fontWeight: 700,
           margin: '6px 0 2px',
           color: color ?? '#0f172a',
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+          fontFamily: MONO,
         }}
       >
         {value}
@@ -575,22 +539,5 @@ function Empty({ label }: { label: string }) {
     </div>
   )
 }
-
-const tableStyle: React.CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  fontSize: 13,
-}
-const trHead: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: 11,
-  fontWeight: 600,
-}
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '8px 12px 8px 0',
-  borderBottom: '1px solid #e5e7eb',
-}
-const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
 
 export default Dashboard

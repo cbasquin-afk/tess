@@ -7,11 +7,13 @@ const CA = lazy(() => import('./views/CA'))
 const Mandataires = lazy(() => import('./views/Mandataires'))
 const Portefeuille = lazy(() => import('./views/Portefeuille'))
 const Versements = lazy(() => import('./views/Versements'))
+const Reprises = lazy(() => import('./views/Reprises'))
+const Marge = lazy(() => import('./views/Marge'))
 
 // FinancesProvider wrap tout le module : 1 seul fetch (commissions +
 // contrats lean) au mount, partagé entre Dashboard / CA / Mandataires
 // pour toute la durée de la session de navigation dans /finances/*.
-// Versements utilise un hook local distinct (données indépendantes).
+// Versements, Reprises, Marge utilisent des hooks locaux distincts.
 function FinancesModule() {
   return (
     <FinancesProvider>
@@ -28,6 +30,8 @@ function FinancesModule() {
           <Route path="mandataires" element={<Mandataires />} />
           <Route path="portefeuille" element={<Portefeuille />} />
           <Route path="versements" element={<Versements />} />
+          <Route path="reprises" element={<Reprises />} />
+          <Route path="marge" element={<Marge />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
       </Suspense>

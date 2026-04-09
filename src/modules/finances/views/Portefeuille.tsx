@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { usePortefeuille } from '../hooks/usePortefeuille'
 import type { PortefeuilleRow } from '../types'
+import { tableStyle, trHead, th, thRight, td, tdMontant, trBody, MONO } from '../styles/tableTokens'
 
 const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
 type Commercial = (typeof COMMERCIAUX)[number] | 'Tous'
@@ -25,12 +26,12 @@ function fmtEur(n: number): string {
     Number(n).toLocaleString('fr-FR', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }) + ' €'
+    }) + ' \u20ac'
   )
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '\u2014'
   try {
     const d = new Date(iso)
     return (
@@ -45,70 +46,42 @@ function fmtDate(iso: string | null): string {
   }
 }
 
-// Calcule l'année/mois "prochain mois" en local
-function nextMonth(): { annee: number; mois: number } {
-  const now = new Date()
-  let annee = now.getFullYear()
-  let mois = now.getMonth() + 2 // 1-indexed → mois prochain
-  if (mois > 12) {
-    mois = 1
-    annee += 1
-  }
-  return { annee, mois }
-}
-
 interface PortefeuilleKpis {
   commercial: string
   nb_contrats: number
   cotisation_totale: number
-  com_societe_totale: number
-  com_mandataire_totale: number
-  com_societe_prochain_mois: number
-  com_mandataire_prochain_mois: number
+  com_societe_24m: number
+  com_mandataire_24m: number
+  com_societe_mois: number
+  com_societe_mois_suivant: number
 }
 
 function buildKpis(
   commercial: string,
   rows: PortefeuilleRow[],
 ): PortefeuilleKpis {
-  const next = nextMonth()
-
-  // Contrats distincts + cotisation par contrat unique (1 fois par contrat)
-  const cotisationParContrat = new Map<string, number>()
-  for (const r of rows) {
-    if (!cotisationParContrat.has(r.contrat_id)) {
-      cotisationParContrat.set(r.contrat_id, r.cotisation_mensuelle ?? 0)
-    }
-  }
-  const nb_contrats = cotisationParContrat.size
-  const cotisation_totale = Array.from(cotisationParContrat.values()).reduce(
-    (s, v) => s + v,
-    0,
-  )
-
-  // Totaux sur toute la durée prévue
-  let com_societe_totale = 0
-  let com_mandataire_totale = 0
-  let com_societe_prochain_mois = 0
-  let com_mandataire_prochain_mois = 0
+  let cotisation_totale = 0
+  let com_societe_24m = 0
+  let com_mandataire_24m = 0
+  let com_societe_mois = 0
+  let com_societe_mois_suivant = 0
 
   for (const r of rows) {
-    com_societe_totale += r.com_societe
-    com_mandataire_totale += r.com_mandataire
-    if (r.annee === next.annee && r.mois === next.mois) {
-      com_societe_prochain_mois += r.com_societe
-      com_mandataire_prochain_mois += r.com_mandataire
-    }
+    cotisation_totale += r.cotisation_mensuelle ?? 0
+    com_societe_24m += r.com_societe_24m
+    com_mandataire_24m += r.com_mandataire_24m
+    com_societe_mois += r.com_societe_mois
+    com_societe_mois_suivant += r.com_societe_mois_suivant
   }
 
   return {
     commercial,
-    nb_contrats,
+    nb_contrats: rows.length,
     cotisation_totale,
-    com_societe_totale,
-    com_mandataire_totale,
-    com_societe_prochain_mois,
-    com_mandataire_prochain_mois,
+    com_societe_24m,
+    com_mandataire_24m,
+    com_societe_mois,
+    com_societe_mois_suivant,
   }
 }
 
@@ -117,11 +90,9 @@ interface ContratSummary {
   client: string
   date_effet: string | null
   cotisation_mensuelle: number | null
-  nb_mois: number
-  com_societe_totale: number
-  com_mandataire_totale: number
-  com_societe_prochain_mois: number
-  com_mandataire_prochain_mois: number
+  com_societe_24m: number
+  com_mandataire_24m: number
+  com_societe_mois_suivant: number
 }
 
 interface CompagnieGroup {
@@ -129,8 +100,8 @@ interface CompagnieGroup {
   contrats: ContratSummary[]
   nb_contrats: number
   cotisation_totale: number
-  com_mandataire_totale: number
-  com_mandataire_prochain_mois: number
+  com_mandataire_24m: number
+  com_societe_mois_suivant: number
 }
 
 function Portefeuille() {
@@ -147,67 +118,47 @@ function Portefeuille() {
     )
   }, [rows])
 
-  // Lignes filtrées selon sélection
+  // Lignes filtr\u00e9es selon s\u00e9lection
   const filtered = useMemo<PortefeuilleRow[]>(() => {
     if (selected === 'Tous') return rows
     return rows.filter((r) => r.commercial_prenom === selected)
   }, [rows, selected])
 
-  // KPIs du commercial sélectionné
+  // KPIs du commercial s\u00e9lectionn\u00e9
   const selectedKpis = useMemo<PortefeuilleKpis | null>(() => {
     if (selected === 'Tous') return null
     return buildKpis(selected, filtered)
   }, [filtered, selected])
 
-  // Groupement par compagnie → par contrat distinct (mode commercial unique)
+  // Groupement par compagnie (mode commercial unique)
   const groupes = useMemo<CompagnieGroup[]>(() => {
     if (selected === 'Tous') return []
-    const next = nextMonth()
 
-    // Phase 1 : agréger par contrat (sum sur tous les mois prévus)
-    const byContrat = new Map<string, ContratSummary>()
-    const contratCompagnie = new Map<string, string>()
+    const byCompagnie = new Map<string, CompagnieGroup>()
 
     for (const r of filtered) {
-      contratCompagnie.set(r.contrat_id, r.compagnie_assureur ?? '—')
-      const ex = byContrat.get(r.contrat_id) ?? {
-        contrat_id: r.contrat_id,
-        client: r.client,
-        date_effet: r.date_effet,
-        cotisation_mensuelle: r.cotisation_mensuelle,
-        nb_mois: 0,
-        com_societe_totale: 0,
-        com_mandataire_totale: 0,
-        com_societe_prochain_mois: 0,
-        com_mandataire_prochain_mois: 0,
-      }
-      ex.nb_mois += 1
-      ex.com_societe_totale += r.com_societe
-      ex.com_mandataire_totale += r.com_mandataire
-      if (r.annee === next.annee && r.mois === next.mois) {
-        ex.com_societe_prochain_mois += r.com_societe
-        ex.com_mandataire_prochain_mois += r.com_mandataire
-      }
-      byContrat.set(r.contrat_id, ex)
-    }
-
-    // Phase 2 : grouper les contrats par compagnie
-    const byCompagnie = new Map<string, CompagnieGroup>()
-    for (const [contratId, summary] of byContrat.entries()) {
-      const cie = contratCompagnie.get(contratId) ?? '—'
+      const cie = r.compagnie_assureur ?? '\u2014'
       const ex = byCompagnie.get(cie) ?? {
         compagnie: cie,
         contrats: [],
         nb_contrats: 0,
         cotisation_totale: 0,
-        com_mandataire_totale: 0,
-        com_mandataire_prochain_mois: 0,
+        com_mandataire_24m: 0,
+        com_societe_mois_suivant: 0,
       }
-      ex.contrats.push(summary)
+      ex.contrats.push({
+        contrat_id: r.contrat_id,
+        client: r.client,
+        date_effet: r.date_effet,
+        cotisation_mensuelle: r.cotisation_mensuelle,
+        com_societe_24m: r.com_societe_24m,
+        com_mandataire_24m: r.com_mandataire_24m,
+        com_societe_mois_suivant: r.com_societe_mois_suivant,
+      })
       ex.nb_contrats += 1
-      ex.cotisation_totale += summary.cotisation_mensuelle ?? 0
-      ex.com_mandataire_totale += summary.com_mandataire_totale
-      ex.com_mandataire_prochain_mois += summary.com_mandataire_prochain_mois
+      ex.cotisation_totale += r.cotisation_mensuelle ?? 0
+      ex.com_mandataire_24m += r.com_mandataire_24m
+      ex.com_societe_mois_suivant += r.com_societe_mois_suivant
       byCompagnie.set(cie, ex)
     }
 
@@ -224,22 +175,22 @@ function Portefeuille() {
     return arr
   }, [filtered, selected])
 
-  if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
+  if (loading) return <div style={{ color: '#64748b' }}>Chargement\u2026</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
         <h1 style={{ margin: 0, fontSize: 24 }}>
-          Portefeuille — Renouvellements prévus
+          Portefeuille \u2014 Renouvellements pr\u00e9vus
         </h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Commissions de renouvellement prévues sur le portefeuille actif
+          Commissions de renouvellement pr\u00e9vues sur le portefeuille actif
           (source : moteur de calcul Supabase).
         </p>
       </div>
 
-      {/* Pills sélecteur commercial */}
+      {/* Pills s\u00e9lecteur commercial */}
       <div
         style={{
           background: '#fff',
@@ -318,13 +269,13 @@ function Portefeuille() {
                   value={`${fmtEur(k.cotisation_totale)}/m`}
                 />
                 <MiniKpi
-                  label="Com. mois prochain"
-                  value={fmtEur(k.com_mandataire_prochain_mois)}
+                  label="Com. soci\u00e9t\u00e9 mois suivant"
+                  value={fmtEur(k.com_societe_mois_suivant)}
                   highlight
                 />
                 <MiniKpi
-                  label="Projection totale"
-                  value={fmtEur(k.com_mandataire_totale)}
+                  label="Com. mandataire 24m"
+                  value={fmtEur(k.com_mandataire_24m)}
                 />
               </div>
             )
@@ -351,32 +302,32 @@ function Portefeuille() {
             <Kpi
               label="Cotisation totale"
               value={`${fmtEur(selectedKpis.cotisation_totale)}/m`}
-              hint="Mensuelle cumulée"
+              hint="Mensuelle cumul\u00e9e"
             />
             <Kpi
-              label="Com. mois prochain (société)"
-              value={fmtEur(selectedKpis.com_societe_prochain_mois)}
-              hint="Renouvellements à venir"
+              label="Com. soci\u00e9t\u00e9 mois"
+              value={fmtEur(selectedKpis.com_societe_mois)}
+              hint="Renouvellements \u00e0 venir"
               color="#00C18B"
             />
             <Kpi
-              label="Com. mois prochain (mandataire)"
-              value={fmtEur(selectedKpis.com_mandataire_prochain_mois)}
-              hint="Part mandataire"
+              label="Com. soci\u00e9t\u00e9 mois suivant"
+              value={fmtEur(selectedKpis.com_societe_mois_suivant)}
+              hint="Mois suivant"
               color="#00C18B"
             />
           </div>
 
-          {/* Détail par compagnie */}
+          {/* D\u00e9tail par compagnie */}
           {groupes.length === 0 ? (
-            <Card title="Détail par compagnie">
+            <Card title="D\u00e9tail par compagnie">
               <Empty label="Aucun contrat dans le portefeuille." />
             </Card>
           ) : (
             groupes.map((g) => (
               <Card
                 key={g.compagnie}
-                title={`${g.compagnie} — ${g.nb_contrats} contrat${g.nb_contrats > 1 ? 's' : ''}`}
+                title={`${g.compagnie} \u2014 ${g.nb_contrats} contrat${g.nb_contrats > 1 ? 's' : ''}`}
               >
                 <div
                   style={{
@@ -389,64 +340,53 @@ function Portefeuille() {
                   <strong
                     style={{
                       color: '#0f172a',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
+                      fontFamily: MONO,
                     }}
                   >
                     {fmtEur(g.cotisation_totale)}/m
                   </strong>{' '}
-                  · Com. mandataire totale :{' '}
+                  \u00b7 Com. mandataire 24m :{' '}
                   <strong
                     style={{
                       color: '#00C18B',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
+                      fontFamily: MONO,
                     }}
                   >
-                    {fmtEur(g.com_mandataire_totale)}
+                    {fmtEur(g.com_mandataire_24m)}
                   </strong>{' '}
-                  · Mois prochain :{' '}
+                  \u00b7 Com. mois suivant :{' '}
                   <strong
                     style={{
                       color: '#00C18B',
-                      fontFamily:
-                        "'JetBrains Mono', ui-monospace, monospace",
+                      fontFamily: MONO,
                     }}
                   >
-                    {fmtEur(g.com_mandataire_prochain_mois)}
+                    {fmtEur(g.com_societe_mois_suivant)}
                   </strong>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 13,
-                    }}
-                  >
+                  <table style={tableStyle}>
+                    <colgroup>
+                      <col style={{ width: 140 }} />
+                      <col style={{ width: 100 }} />
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 150 }} />
+                      <col style={{ width: 120 }} />
+                    </colgroup>
                     <thead>
                       <tr style={trHead}>
                         <th style={th}>Client</th>
                         <th style={th}>Date effet</th>
-                        <th style={{ ...th, textAlign: 'right' }}>
-                          Cotisation
-                        </th>
-                        <th style={{ ...th, textAlign: 'right' }}>
-                          Nb mois prévus
-                        </th>
-                        <th style={{ ...th, textAlign: 'right' }}>
-                          Com. mandataire totale
-                        </th>
-                        <th style={{ ...th, textAlign: 'right' }}>
-                          Com. mois N+1
-                        </th>
+                        <th style={thRight}>Cotisation</th>
+                        <th style={thRight}>Com. soci\u00e9t\u00e9 24m</th>
+                        <th style={thRight}>Com. mois suivant</th>
                       </tr>
                     </thead>
                     <tbody>
                       {g.contrats.map((c) => (
                         <tr
                           key={c.contrat_id}
-                          style={{ borderTop: '1px solid #f1f5f9' }}
+                          style={trBody}
                         >
                           <td
                             style={{
@@ -461,8 +401,7 @@ function Portefeuille() {
                             style={{
                               ...td,
                               color: '#94a3b8',
-                              fontFamily:
-                                "'JetBrains Mono', ui-monospace, monospace",
+                              fontFamily: MONO,
                               fontSize: 11,
                             }}
                           >
@@ -470,54 +409,35 @@ function Portefeuille() {
                           </td>
                           <td
                             style={{
-                              ...td,
-                              textAlign: 'right',
-                              fontFamily:
-                                "'JetBrains Mono', ui-monospace, monospace",
+                              ...tdMontant,
                               color: '#475569',
                             }}
                           >
                             {c.cotisation_mensuelle
                               ? `${fmtEur(c.cotisation_mensuelle)}/m`
-                              : '—'}
+                              : '\u2014'}
                           </td>
                           <td
                             style={{
-                              ...td,
-                              textAlign: 'right',
-                              color: '#94a3b8',
-                              fontSize: 11,
-                            }}
-                          >
-                            {c.nb_mois}
-                          </td>
-                          <td
-                            style={{
-                              ...td,
-                              textAlign: 'right',
-                              fontFamily:
-                                "'JetBrains Mono', ui-monospace, monospace",
+                              ...tdMontant,
                               color: '#00C18B',
                               fontWeight: 700,
                             }}
                           >
-                            {fmtEur(c.com_mandataire_totale)}
+                            {fmtEur(c.com_societe_24m)}
                           </td>
                           <td
                             style={{
-                              ...td,
-                              textAlign: 'right',
-                              fontFamily:
-                                "'JetBrains Mono', ui-monospace, monospace",
+                              ...tdMontant,
                               color:
-                                c.com_mandataire_prochain_mois > 0
+                                c.com_societe_mois_suivant > 0
                                   ? '#00C18B'
                                   : '#cbd5e1',
                             }}
                           >
-                            {c.com_mandataire_prochain_mois > 0
-                              ? fmtEur(c.com_mandataire_prochain_mois)
-                              : '—'}
+                            {c.com_societe_mois_suivant > 0
+                              ? fmtEur(c.com_societe_mois_suivant)
+                              : '\u2014'}
                           </td>
                         </tr>
                       ))}
@@ -533,7 +453,7 @@ function Portefeuille() {
   )
 }
 
-// ── Sub-composants ──────────────────────────────────────────
+// -- Sub-composants --
 
 interface KpiProps {
   label: string
@@ -561,7 +481,7 @@ function Kpi({ label, value, hint, color }: KpiProps) {
           fontWeight: 700,
           margin: '6px 0 2px',
           color: color ?? '#0f172a',
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+          fontFamily: MONO,
         }}
       >
         {value}
@@ -598,7 +518,7 @@ function MiniKpi({
       <span style={{ fontSize: 11, color: '#64748b' }}>{label}</span>
       <span
         style={{
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+          fontFamily: MONO,
           fontSize: primary ? 16 : 12,
           fontWeight: primary || highlight ? 700 : 600,
           color,
@@ -639,17 +559,5 @@ function Empty({ label }: { label: string }) {
     </div>
   )
 }
-
-const trHead: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: 11,
-  fontWeight: 600,
-}
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '8px 12px 8px 0',
-  borderBottom: '1px solid #e5e7eb',
-}
-const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
 
 export default Portefeuille
