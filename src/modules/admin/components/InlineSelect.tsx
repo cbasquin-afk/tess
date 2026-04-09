@@ -72,7 +72,7 @@ export function InlineSelect({
       title={error ? 'Erreur de sauvegarde' : undefined}
       style={{
         border: `1px solid ${color}30`,
-        background: `${color}15`,
+        backgroundColor: `${color}15`,
         color,
         fontWeight: 600,
         fontSize: 11,
