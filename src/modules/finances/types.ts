@@ -99,6 +99,40 @@ export interface RetractationRow {
   taux_mandataire: number
 }
 
+// ── Vue tadmin_v_commissions_mandataires ─────────────────────
+// 1 ligne par commercial × mois de signature (LR/Linéaire : 12 mois
+// agrégés au mois de signature, COVERITY rattaché à date_signature)
+export interface CommissionMandataire {
+  commercial_id: string
+  commercial_prenom: string
+  annee: number
+  mois: number
+  nb_contrats: number
+  com_societe: number
+  com_mandataire: number
+}
+
+// ── Vue tadmin_v_commissions_mandataires_detail ──────────────
+// 1 ligne par contrat (pas par ligne mensuelle)
+export interface CommissionMandataireDetail {
+  contrat_id: string
+  commercial_id: string
+  commercial_prenom: string
+  annee: number
+  mois: number
+  client: string
+  compagnie_assureur: string
+  type_contrat: string | null
+  type_commission: string | null
+  origine: string | null
+  source: string | null
+  date_signature: string | null
+  cotisation_mensuelle: number
+  montant_com_societe: number
+  montant_com_mandataire: number
+  taux_mandataire_pct: number
+}
+
 // Lecture depuis tadmin_v_versements (vide pour l'instant)
 export interface Versement {
   compagnie: string

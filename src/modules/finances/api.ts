@@ -2,6 +2,8 @@ import { supabase } from '@/shared/supabase'
 import type {
   ChargeMensuelle,
   CommissionDetail,
+  CommissionMandataire,
+  CommissionMandataireDetail,
   CommissionRow,
   ContratLean,
   MargeMensuelle,
@@ -107,6 +109,38 @@ export async function fetchPortefeuille(): Promise<PortefeuilleRow[]> {
     com_societe_mois: Number(r.com_societe_mois) || 0,
     com_societe_mois_suivant: Number(r.com_societe_mois_suivant) || 0,
   }))
+}
+
+// ── Commissions mandataires (par date_signature) ────────────
+export async function fetchCommissionsMandataires(
+  annee?: number,
+): Promise<CommissionMandataire[]> {
+  let q = supabase.from('tadmin_v_commissions_mandataires').select('*')
+  if (annee) q = q.eq('annee', annee)
+  const { data, error } = await q
+    .order('annee', { ascending: true })
+    .order('mois', { ascending: true })
+    .order('commercial_prenom', { ascending: true })
+  if (error) throw new Error(`tadmin_v_commissions_mandataires: ${error.message}`)
+  return (data ?? []) as CommissionMandataire[]
+}
+
+export async function fetchCommissionsMandataireDetail(
+  annee: number,
+  mois: number,
+  commercial_id: string,
+): Promise<CommissionMandataireDetail[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_commissions_mandataires_detail')
+    .select('*')
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .eq('commercial_id', commercial_id)
+    .order('date_signature', { ascending: true })
+    .order('client', { ascending: true })
+  if (error)
+    throw new Error(`tadmin_v_commissions_mandataires_detail: ${error.message}`)
+  return (data ?? []) as CommissionMandataireDetail[]
 }
 
 // ── Vue rétractations + taux mandataire calculé serveur ──────

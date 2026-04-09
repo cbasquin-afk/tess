@@ -1,32 +1,31 @@
-import { useMemo, useState } from 'react'
-import { useFinancesCtx } from '../context/FinancesContext'
-import { useCommissionsDetail } from '../hooks/useCommissionsDetail'
-import { useRetractations } from '../hooks/useRetractations'
-import { tableStyle, trHead, th, thRight, thCenter, td, tdRight, tdCenter, tdMontant, trFooter, tdFooterLabel, tdFooterMontant, trBody, MONO } from '../styles/tableTokens'
+import { Fragment, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import {
+  fetchCommissionsMandataires,
+  fetchCommissionsMandataireDetail,
+} from '../api'
+import {
+  tableStyle,
+  trHead,
+  th,
+  thRight,
+  td,
+  tdMontant,
+  trFooter,
+  tdFooterLabel,
+  tdFooterMontant,
+  trBody,
+  MONO,
+} from '../styles/tableTokens'
 import type {
-  CAParCommercial,
-  CommissionDetail,
-  ContratLean,
-  RetractationRow,
+  CommissionMandataire,
+  CommissionMandataireDetail,
 } from '../types'
 
-const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
-type Commercial = (typeof COMMERCIAUX)[number] | 'Tous'
-
-const COMM_COLORS: Record<string, string> = {
-  Charlotte: '#378ADD',
-  Cheyenne: '#BA7517',
-  Mariam: '#534AB7',
-  Christopher: '#1D9E75',
-  Tous: '#64748b',
-}
-
-const COMM_BG: Record<string, string> = {
-  Charlotte: '#dbeafe',
-  Cheyenne: '#fef3c7',
-  Mariam: '#ede9fe',
-  Christopher: '#dcfce7',
-}
+const COMMERCIAUX = [
+  { prenom: 'Charlotte', color: '#378ADD' },
+  { prenom: 'Cheyenne', color: '#BA7517' },
+  { prenom: 'Christopher', color: '#1D9E75' },
+] as const
 
 const MOIS_NOMS = [
   '',
@@ -44,38 +43,6 @@ const MOIS_NOMS = [
   'Décembre',
 ] as const
 
-const OBJECTIFS = {
-  CA_JOUR: 600,
-  PANIER: 100,
-  CA_MOYEN: 300,
-  CONTRATS: 44,
-  FRAIS: 500,
-} as const
-
-interface TauxMandataire {
-  source: string
-  taux: string
-  description: string
-}
-
-const REFERENTIEL_TAUX: TauxMandataire[] = [
-  { source: 'Lead', taux: '25%', description: 'CA santé lead' },
-  { source: 'Recommandation', taux: '40%', description: 'CA recommandation' },
-  { source: 'Multi-équipement', taux: '40%', description: 'CA multi-équipement' },
-  { source: 'Frais de service', taux: '40%', description: '40% des frais facturés' },
-  { source: 'Reco partagée', taux: '20%', description: 'Recommandation partagée' },
-  {
-    source: 'Linéaire / Replacement',
-    taux: '10%',
-    description: 'Commissionnement linéaire',
-  },
-  {
-    source: 'Avis 5 étoiles',
-    taux: '5€/avis',
-    description: 'Bonus qualité (8 avis mini)',
-  },
-]
-
 function fmtEur(n: number): string {
   return (
     Number(n).toLocaleString('fr-FR', {
@@ -85,248 +52,87 @@ function fmtEur(n: number): string {
   )
 }
 
-function fmtMois(annee: number, mois: number): string {
-  return `${MOIS_NOMS[mois] ?? mois} ${annee}`
-}
-
-// Estimation du taux compagnie 1ère année basée sur le code
-// type_commission. Regex universelle qui extrait le premier nombre
-// après le préfixe (PA, PS, LE, LR, LA, Linéaire) — couvre tous les
-// formats trouvés en base : 'PA 34/10', 'PS 40/12/8', 'LR 30/10',
-// 'LA 10', 'Linéaire 20', etc.
-function tauxCompagnieEstime(typeCommission: string | null): number {
-  if (!typeCommission) return 0.3
-  const tc = typeCommission.toUpperCase().trim()
-
-  // Préfixes PA / PS : 1ère année
-  const matchPaPs = tc.match(/^(?:PA|PS)\s+(\d+)/)
-  if (matchPaPs && matchPaPs[1]) return parseInt(matchPaPs[1], 10) / 100
-
-  // Préfixes LE / LR / LA : linéaire annoncé
-  const matchLeLrLa = tc.match(/^(?:LE|LR|LA)\s+(\d+)/)
-  if (matchLeLrLa && matchLeLrLa[1])
-    return parseInt(matchLeLrLa[1], 10) / 100
-
-  // 'Linéaire X' ou 'Lineaire X'
-  if (tc.startsWith('LINÉAIRE') || tc.startsWith('LINEAIRE')) {
-    const m = tc.match(/(\d+)/)
-    if (m && m[1]) return parseInt(m[1], 10) / 100
-  }
-
-  return 0.3 // défaut prudent
-}
-
-// Manque à gagner mandataire estimé sur une rétractation :
-// cotisation × taux_cie × 12 mois × taux_mandataire
-function comMandataireEstimee(row: RetractationRow): number {
-  if (!row.cotisation_mensuelle) return 0
-  const tauxCie = tauxCompagnieEstime(row.type_commission)
-  const comSociete1a = row.cotisation_mensuelle * tauxCie * 12
-  return comSociete1a * row.taux_mandataire
-}
-
-const ORIGINE_COLORS: Record<string, string> = {
-  Mapapp: '#378ADD',
-  Site: '#1D9E75',
-  Recommandation: '#534AB7',
-  'Back-office': '#64748b',
-  'Multi-équipement': '#BA7517',
-}
-
-function origineCol(o: string | null): string {
-  if (!o) return '#94a3b8'
-  return ORIGINE_COLORS[o] ?? '#94a3b8'
-}
-
-function isInMonth(
-  isoDate: string | null,
-  year: number,
-  month: number,
-): boolean {
-  if (!isoDate) return false
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—'
   try {
-    const d = new Date(isoDate)
-    return d.getFullYear() === year && d.getMonth() + 1 === month
+    const d = new Date(iso)
+    return (
+      String(d.getDate()).padStart(2, '0') +
+      '/' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '/' +
+      d.getFullYear()
+    )
   } catch {
-    return false
+    return iso
   }
-}
-
-interface CommercialKpis {
-  commercial: string
-  ca_societe: number
-  ca_mandataire: number
-  frais: number
-  nb_contrats: number
-  panier_moyen: number
-  ca_moyen_par_contrat: number
-  ca_par_jour: number
-  projection: number
-}
-
-function buildKpisForCommercial(
-  commercial: string,
-  caRow: CAParCommercial | null,
-  contrats: ContratLean[],
-  year: number,
-  month: number,
-  joursEcoules: number,
-  joursDansMois: number,
-): CommercialKpis {
-  const ca_societe = caRow?.ca_societe ?? 0
-  const ca_mandataire = caRow?.ca_mandataire ?? 0
-  const frais = caRow?.frais ?? 0
-  const nb_contrats = caRow?.nb_contrats ?? 0
-
-  // Panier moyen : moyenne des cotisations_mensuelle des contrats du
-  // commercial signés ce mois-ci
-  const contratsDuMois = contrats.filter(
-    (c) =>
-      c.commercial_prenom === commercial &&
-      isInMonth(c.date_signature, year, month) &&
-      c.cotisation_mensuelle !== null &&
-      c.cotisation_mensuelle > 0,
-  )
-  const panier_moyen =
-    contratsDuMois.length > 0
-      ? contratsDuMois.reduce(
-          (s, c) => s + (c.cotisation_mensuelle ?? 0),
-          0,
-        ) / contratsDuMois.length
-      : 0
-
-  const ca_moyen_par_contrat = nb_contrats > 0 ? ca_societe / nb_contrats : 0
-  const ca_par_jour = joursEcoules > 0 ? ca_societe / joursEcoules : 0
-  const projection =
-    joursEcoules > 0 ? (ca_societe * joursDansMois) / joursEcoules : 0
-
-  return {
-    commercial,
-    ca_societe,
-    ca_mandataire,
-    frais,
-    nb_contrats,
-    panier_moyen,
-    ca_moyen_par_contrat,
-    ca_par_jour,
-    projection,
-  }
-}
-
-function statutCouleur(pct: number): {
-  color: string
-  background: string
-  label: string
-} {
-  if (pct >= 100)
-    return { color: '#1D9E75', background: '#dcfce7', label: '✓' }
-  if (pct >= 80)
-    return { color: '#BA7517', background: '#fef3c7', label: '!' }
-  return { color: '#E24B4A', background: '#fee2e2', label: '✗' }
 }
 
 function Mandataires() {
-  const { caParCommercial, contrats, loading, error } = useFinancesCtx()
-  const { rows: allCommissionsDetail, loading: loadingDetail } =
-    useCommissionsDetail()
-  const { rows: allRetractations, loading: loadingRetracs } = useRetractations()
-  const [selected, setSelected] = useState<Commercial>('Tous')
-
   const now = new Date()
   const curYear = now.getFullYear()
   const curMonth = now.getMonth() + 1
-  const joursEcoules = now.getDate()
-  const joursDansMois = new Date(curYear, curMonth, 0).getDate()
 
-  // Map commercial → CAParCommercial du mois courant
-  const caCurrentMonthMap = useMemo(() => {
-    const m = new Map<string, CAParCommercial>()
-    for (const r of caParCommercial) {
-      if (r.annee === curYear && r.mois === curMonth) {
-        m.set(r.commercial_prenom, r)
-      }
+  const [annee, setAnnee] = useState(curYear)
+  const [rows, setRows] = useState<CommissionMandataire[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Drill-down
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [drillData, setDrillData] = useState<
+    Record<string, CommissionMandataireDetail[]>
+  >({})
+  const [drillLoading, setDrillLoading] = useState<string | null>(null)
+
+  // Fetch
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const d = await fetchCommissionsMandataires(annee)
+      setRows(d)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
     }
-    return m
-  }, [caParCommercial, curYear, curMonth])
+  }, [annee])
 
-  // KPIs pour chaque commercial (utile en mode "Tous" et pour le sélectionné)
-  const allKpis = useMemo<CommercialKpis[]>(() => {
-    return COMMERCIAUX.map((c) =>
-      buildKpisForCommercial(
-        c,
-        caCurrentMonthMap.get(c) ?? null,
-        contrats,
-        curYear,
-        curMonth,
-        joursEcoules,
-        joursDansMois,
-      ),
-    )
-  }, [
-    caCurrentMonthMap,
-    contrats,
-    curYear,
-    curMonth,
-    joursEcoules,
-    joursDansMois,
-  ])
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
 
-  // KPIs du commercial sélectionné (si pas "Tous")
-  const selectedKpis = useMemo<CommercialKpis | null>(() => {
-    if (selected === 'Tous') return null
-    return allKpis.find((k) => k.commercial === selected) ?? null
-  }, [allKpis, selected])
+  // Available years for selector
+  const annees = useMemo(() => {
+    const set = new Set<number>()
+    for (const r of rows) set.add(r.annee)
+    set.add(curYear)
+    return Array.from(set).sort((a, b) => b - a)
+  }, [rows, curYear])
 
-  // Historique mensuel du commercial sélectionné (si pas "Tous")
-  const historique = useMemo<CAParCommercial[]>(() => {
-    if (selected === 'Tous') return []
-    return caParCommercial.filter((r) => r.commercial_prenom === selected)
-  }, [caParCommercial, selected])
-
-  // Détail des commissions du mois courant, filtré par commercial
-  // sélectionné. Ignore les lignes 'frais' (type_ligne) et tri par
-  // montant_com_societe DESC.
-  const commissionsMois = useMemo<CommissionDetail[]>(() => {
-    return allCommissionsDetail
-      .filter(
-        (r) =>
-          r.annee === curYear &&
-          r.mois === curMonth &&
-          r.type_ligne !== 'frais' &&
-          (selected === 'Tous' || r.commercial_prenom === selected),
-      )
-      .sort((a, b) => b.montant_com_societe - a.montant_com_societe)
-  }, [allCommissionsDetail, curYear, curMonth, selected])
-
-  // Total mandataire du mois (filtre commercial respecté)
-  const totalMandataireMois = useMemo(
-    () => commissionsMois.reduce((s, r) => s + r.montant_com_mandataire, 0),
-    [commissionsMois],
-  )
-
-  // Rétractations filtrées par commercial sélectionné
-  const retractations = useMemo<RetractationRow[]>(() => {
-    return allRetractations
-      .filter(
-        (r) =>
-          selected === 'Tous' || r.commercial_prenom === selected,
-      )
-      .sort((a, b) => {
-        // Tri par commercial puis date desc
-        const c = (a.commercial_prenom ?? '').localeCompare(
-          b.commercial_prenom ?? '',
-          'fr',
-        )
-        if (c !== 0) return c
-        return (b.date_signature ?? '').localeCompare(a.date_signature ?? '')
-      })
-  }, [allRetractations, selected])
-
-  // Manque à gagner total estimé (mandataire) sur les rétractations filtrées
-  const totalManqueAGagner = useMemo(
-    () =>
-      retractations.reduce((s, r) => s + comMandataireEstimee(r), 0),
-    [retractations],
+  // Drill-down handler
+  const handleRowClick = useCallback(
+    async (a: number, m: number, commercialId: string) => {
+      const key = `${a}-${m}-${commercialId}`
+      if (expanded === key) {
+        setExpanded(null)
+        return
+      }
+      setExpanded(key)
+      if (!drillData[key]) {
+        setDrillLoading(key)
+        try {
+          const d = await fetchCommissionsMandataireDetail(a, m, commercialId)
+          setDrillData((prev) => ({ ...prev, [key]: d }))
+        } catch {
+          // silently fail
+        } finally {
+          setDrillLoading(null)
+        }
+      }
+    },
+    [expanded, drillData],
   )
 
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
@@ -335,13 +141,14 @@ function Mandataires() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Mandataires</h1>
+        <h1 style={{ margin: 0, fontSize: 24 }}>Commissions mandataires</h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Tableau de bord individuel par commercial — performance vs objectifs.
+          Calculées sur les contrats signés dans le mois — les 12 mois
+          linéaires sont avancés au mois de signature.
         </p>
       </div>
 
-      {/* Pills sélecteur commercial */}
+      {/* Filtres */}
       <div
         style={{
           background: '#fff',
@@ -349,844 +156,427 @@ function Mandataires() {
           borderRadius: 10,
           padding: 14,
           display: 'flex',
-          gap: 10,
+          alignItems: 'center',
+          gap: 14,
           flexWrap: 'wrap',
         }}
       >
-        {(['Tous', ...COMMERCIAUX] as const).map((c) => {
-          const active = selected === c
-          const col = COMM_COLORS[c] ?? '#64748b'
-          return (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setSelected(c)}
-              style={{
-                padding: '6px 14px',
-                fontSize: 12,
-                fontWeight: 600,
-                border: `1px solid ${active ? col : '#d1d5db'}`,
-                cursor: 'pointer',
-                background: active ? col : 'transparent',
-                color: active ? '#fff' : col,
-                borderRadius: 6,
-              }}
-            >
-              {c}
-            </button>
-          )
-        })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <label style={labelStyle}>Année</label>
+          <select
+            value={annee}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+              setAnnee(parseInt(e.target.value, 10))
+            }
+            style={inputStyle}
+          >
+            {annees.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1 }} />
+        <span style={{ color: '#94a3b8', fontSize: 11 }}>
+          ℹ️ Logique différente de l&apos;onglet Commissions mensuelles
+        </span>
       </div>
 
-      {/* Mode Tous : grid des 4 KPI cards par commercial */}
-      {selected === 'Tous' && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-            gap: 14,
-          }}
-        >
-          {allKpis.map((k) => {
-            const col = COMM_COLORS[k.commercial] ?? '#64748b'
-            const bg = COMM_BG[k.commercial] ?? '#f3f4f6'
-            return (
-              <div
-                key={k.commercial}
-                style={{
-                  background: bg,
-                  border: `1px solid ${col}30`,
-                  borderRadius: 10,
-                  padding: 16,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: col,
-                    marginBottom: 10,
-                  }}
-                >
-                  {k.commercial}
-                </div>
-                <MiniKpi
-                  label="CA en cours"
-                  value={fmtEur(k.ca_societe)}
-                  primary
-                />
-                <MiniKpi
-                  label="Projection fin de mois"
-                  value={fmtEur(k.projection)}
-                />
-                <MiniKpi
-                  label="CA mandataires"
-                  value={fmtEur(k.ca_mandataire)}
-                />
-                <MiniKpi
-                  label="Nb contrats"
-                  value={String(k.nb_contrats)}
-                />
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {/* Un tableau par commercial */}
+      {COMMERCIAUX.map((com) => {
+        const comRows = rows.filter(
+          (r) => r.commercial_prenom === com.prenom,
+        )
+        const totals = comRows.reduce(
+          (acc, r) => ({
+            nb_contrats: acc.nb_contrats + r.nb_contrats,
+            com_societe: acc.com_societe + r.com_societe,
+            com_mandataire: acc.com_mandataire + r.com_mandataire,
+          }),
+          { nb_contrats: 0, com_societe: 0, com_mandataire: 0 },
+        )
 
-      {/* Mode commercial unique */}
-      {selectedKpis && (
-        <>
-          {/* 4 KPIs */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 14,
-            }}
+        return (
+          <Card
+            key={com.prenom}
+            title={com.prenom}
+            titleColor={com.color}
           >
-            <Kpi
-              label={`CA ${MOIS_NOMS[curMonth]}`}
-              value={fmtEur(selectedKpis.ca_societe)}
-              color={COMM_COLORS[selected] ?? '#0f172a'}
-            />
-            <Kpi
-              label="Projection fin de mois"
-              value={fmtEur(selectedKpis.projection)}
-              hint={`Sur ${joursDansMois} jours`}
-              color="#00C18B"
-            />
-            <Kpi
-              label="CA mandataires"
-              value={fmtEur(selectedKpis.ca_mandataire)}
-            />
-            <Kpi
-              label="Nb contrats"
-              value={String(selectedKpis.nb_contrats)}
-            />
-          </div>
-
-          {/* Indicateurs vs objectifs */}
-          <Card title={`Objectifs — ${MOIS_NOMS[curMonth]} ${curYear}`}>
-            <table style={tableStyle}>
-              <colgroup>
-                <col />
-                <col style={{ width: 110 }} />
-                <col style={{ width: 110 }} />
-                <col style={{ width: 70 }} />
-                <col style={{ width: 60 }} />
-              </colgroup>
-              <thead>
-                <tr style={trHead}>
-                  <th style={th}>Indicateur</th>
-                  <th style={thRight}>Objectif</th>
-                  <th style={thRight}>Réalisé</th>
-                  <th style={thRight}>%</th>
-                  <th style={thCenter}>
-                    Statut
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <ObjectifRow
-                  label={`CA / jour (${joursEcoules}j écoulés)`}
-                  objectif={OBJECTIFS.CA_JOUR}
-                  realise={selectedKpis.ca_par_jour}
-                  format={fmtEur}
-                />
-                <ObjectifRow
-                  label="Panier moyen"
-                  objectif={OBJECTIFS.PANIER}
-                  realise={selectedKpis.panier_moyen}
-                  format={fmtEur}
-                />
-                <ObjectifRow
-                  label="CA moyen par contrat"
-                  objectif={OBJECTIFS.CA_MOYEN}
-                  realise={selectedKpis.ca_moyen_par_contrat}
-                  format={fmtEur}
-                />
-                <ObjectifRow
-                  label="Nb contrats"
-                  objectif={OBJECTIFS.CONTRATS}
-                  realise={selectedKpis.nb_contrats}
-                  format={(n) => String(Math.round(n))}
-                />
-                <ObjectifRow
-                  label="Frais de service"
-                  objectif={OBJECTIFS.FRAIS}
-                  realise={selectedKpis.frais}
-                  format={fmtEur}
-                />
-              </tbody>
-            </table>
-          </Card>
-
-          {/* Historique mensuel */}
-          <Card title={`Historique — ${selected}`}>
-            {historique.length === 0 ? (
-              <Empty label="Aucun historique." />
+            {comRows.length === 0 ? (
+              <Empty label={`Aucune commission pour ${com.prenom} en ${annee}.`} />
             ) : (
-              <table style={tableStyle}>
+              <table style={{ ...tableStyle, tableLayout: 'auto' }}>
                 <colgroup>
-                  <col style={{ width: 160 }} />
-                  <col style={{ width: 100 }} />
-                  <col style={{ width: 130 }} />
-                  <col style={{ width: 130 }} />
+                  <col style={{ width: 200 }} />
                   <col style={{ width: 110 }} />
+                  <col style={{ width: 150 }} />
+                  <col style={{ width: 160 }} />
                 </colgroup>
                 <thead>
                   <tr style={trHead}>
-                    <th style={th}>Mois</th>
+                    <th style={th}>Période</th>
                     <th style={thRight}>Nb contrats</th>
-                    <th style={thRight}>CA société</th>
-                    <th style={thRight}>
-                      CA mandataires
-                    </th>
-                    <th style={thRight}>Frais</th>
+                    <th style={thRight}>Com&apos; Tessoria</th>
+                    <th style={thRight}>Com&apos; mandataire</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {historique.map((r) => (
-                    <tr
-                      key={`${r.annee}-${r.mois}`}
-                      style={trBody}
-                    >
-                      <td
-                        style={{
-                          ...td,
-                          fontWeight: 600,
-                          color: '#0f172a',
-                        }}
-                      >
-                        {fmtMois(r.annee, r.mois)}
-                      </td>
-                      <td
-                        style={{
-                          ...tdRight,
-                          color: '#94a3b8',
-                        }}
-                      >
-                        {r.nb_contrats}
-                      </td>
-                      <td
-                        style={{
-                          ...tdMontant,
-                          color: '#0f172a',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {fmtEur(r.ca_societe)}
-                      </td>
-                      <td
-                        style={{
-                          ...tdMontant,
-                          color: '#64748b',
-                        }}
-                      >
-                        {fmtEur(r.ca_mandataire)}
-                      </td>
-                      <td
-                        style={{
-                          ...tdMontant,
-                          color: '#BA7517',
-                        }}
-                      >
-                        {fmtEur(r.frais)}
-                      </td>
-                    </tr>
-                  ))}
+                  {comRows.map((r) => {
+                    const key = `${r.annee}-${r.mois}-${r.commercial_id}`
+                    const isExpanded = expanded === key
+                    const isCurrent =
+                      r.annee === curYear && r.mois === curMonth
+                    const details = drillData[key]
+                    const isLoading = drillLoading === key
+
+                    return (
+                      <Fragment key={key}>
+                        <tr
+                          onClick={() =>
+                            void handleRowClick(
+                              r.annee,
+                              r.mois,
+                              r.commercial_id,
+                            )
+                          }
+                          style={{
+                            ...trBody,
+                            cursor: 'pointer',
+                            background: isCurrent ? '#f0fdf4' : undefined,
+                            borderLeft: isCurrent
+                              ? '3px solid #00C18B'
+                              : '3px solid transparent',
+                          }}
+                        >
+                          <td
+                            style={{
+                              ...td,
+                              fontWeight: 600,
+                              color: '#0f172a',
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                width: 16,
+                                fontSize: 10,
+                                color: '#94a3b8',
+                              }}
+                            >
+                              {isExpanded ? '▾' : '▸'}
+                            </span>
+                            {(MOIS_NOMS[r.mois] ?? r.mois).toString().toLowerCase()}{' '}
+                            {r.annee}
+                            {isCurrent && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: '#1D9E75',
+                                  background: '#dcfce7',
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                En cours
+                              </span>
+                            )}
+                          </td>
+                          <td
+                            style={{
+                              ...td,
+                              textAlign: 'right',
+                              color: '#64748b',
+                            }}
+                          >
+                            {r.nb_contrats}
+                          </td>
+                          <td
+                            style={{
+                              ...tdMontant,
+                              color: '#0f172a',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {fmtEur(r.com_societe)}
+                          </td>
+                          <td
+                            style={{
+                              ...tdMontant,
+                              color: '#00C18B',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {fmtEur(r.com_mandataire)}
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              style={{
+                                padding: 0,
+                                background: '#f8fafc',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  borderTop: '1px solid #e2e8f0',
+                                  padding: '8px 16px 12px',
+                                }}
+                              >
+                                {isLoading ? (
+                                  <div
+                                    style={{
+                                      color: '#64748b',
+                                      fontSize: 12,
+                                      padding: 8,
+                                    }}
+                                  >
+                                    Chargement…
+                                  </div>
+                                ) : !details || details.length === 0 ? (
+                                  <div
+                                    style={{
+                                      color: '#94a3b8',
+                                      fontSize: 12,
+                                      fontStyle: 'italic',
+                                      padding: 8,
+                                    }}
+                                  >
+                                    Aucun contrat ce mois.
+                                  </div>
+                                ) : (
+                                  <>
+                                    <p
+                                      style={{
+                                        fontSize: 12,
+                                        color: '#64748b',
+                                        marginBottom: 8,
+                                        marginTop: 4,
+                                      }}
+                                    >
+                                      {details.length} contrat
+                                      {details.length > 1 ? 's' : ''} ·{' '}
+                                      {(MOIS_NOMS[r.mois] ?? '').toString().toLowerCase()}{' '}
+                                      {r.annee}
+                                    </p>
+                                    <div style={{ overflowX: 'auto' }}>
+                                      <table
+                                        style={{
+                                          width: '100%',
+                                          fontSize: 12,
+                                          borderCollapse: 'collapse',
+                                        }}
+                                      >
+                                        <thead>
+                                          <tr
+                                            style={{
+                                              color: '#64748b',
+                                              fontSize: 10,
+                                              fontWeight: 600,
+                                            }}
+                                          >
+                                            <th style={subTh}>Client</th>
+                                            <th style={subTh}>Compagnie</th>
+                                            <th style={subTh}>Type</th>
+                                            <th style={subTh}>Origine</th>
+                                            <th style={subTh}>Date sig.</th>
+                                            <th
+                                              style={{
+                                                ...subTh,
+                                                textAlign: 'right',
+                                              }}
+                                            >
+                                              Cotis./mois
+                                            </th>
+                                            <th
+                                              style={{
+                                                ...subTh,
+                                                textAlign: 'right',
+                                              }}
+                                            >
+                                              Com&apos; Tessoria
+                                            </th>
+                                            <th
+                                              style={{
+                                                ...subTh,
+                                                textAlign: 'right',
+                                              }}
+                                            >
+                                              Taux
+                                            </th>
+                                            <th
+                                              style={{
+                                                ...subTh,
+                                                textAlign: 'right',
+                                              }}
+                                            >
+                                              Com&apos; mandataire
+                                            </th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {details.map((d) => (
+                                            <tr
+                                              key={d.contrat_id}
+                                              style={{
+                                                borderTop:
+                                                  '1px solid #e5e7eb',
+                                              }}
+                                            >
+                                              <td style={subTd}>
+                                                <strong
+                                                  style={{
+                                                    color: '#0f172a',
+                                                  }}
+                                                >
+                                                  {d.client}
+                                                </strong>
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  color: '#475569',
+                                                }}
+                                              >
+                                                {d.compagnie_assureur}
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  color: '#94a3b8',
+                                                  fontSize: 10,
+                                                }}
+                                              >
+                                                {d.type_commission ?? '—'}
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  color: '#64748b',
+                                                }}
+                                              >
+                                                {d.origine ?? '—'}
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  color: '#94a3b8',
+                                                  fontFamily: MONO,
+                                                  fontSize: 10,
+                                                }}
+                                              >
+                                                {fmtDate(d.date_signature)}
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  textAlign: 'right',
+                                                  fontFamily: MONO,
+                                                  color: '#475569',
+                                                }}
+                                              >
+                                                {fmtEur(
+                                                  d.cotisation_mensuelle,
+                                                )}
+                                                /m
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  textAlign: 'right',
+                                                  fontFamily: MONO,
+                                                  color: '#0f172a',
+                                                  fontWeight: 600,
+                                                }}
+                                              >
+                                                {fmtEur(
+                                                  d.montant_com_societe,
+                                                )}
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  textAlign: 'right',
+                                                  fontFamily: MONO,
+                                                  color: '#64748b',
+                                                  fontSize: 11,
+                                                }}
+                                              >
+                                                {d.taux_mandataire_pct} %
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  textAlign: 'right',
+                                                  fontFamily: MONO,
+                                                  color: '#00C18B',
+                                                  fontWeight: 700,
+                                                }}
+                                              >
+                                                {fmtEur(
+                                                  d.montant_com_mandataire,
+                                                )}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
                   <tr style={trFooter}>
-                    <td style={tdFooterLabel}>Total</td>
-                    <td style={tdRight}>
-                      {historique.reduce((s, r) => s + r.nb_contrats, 0)}
+                    <td style={tdFooterLabel}>Total {com.prenom}</td>
+                    <td
+                      style={{
+                        ...tdFooterMontant,
+                        color: '#0f172a',
+                      }}
+                    >
+                      {totals.nb_contrats}
+                    </td>
+                    <td
+                      style={{
+                        ...tdFooterMontant,
+                        color: '#0f172a',
+                      }}
+                    >
+                      {fmtEur(totals.com_societe)}
                     </td>
                     <td style={tdFooterMontant}>
-                      {fmtEur(historique.reduce((s, r) => s + r.ca_societe, 0))}
-                    </td>
-                    <td
-                      style={{
-                        ...tdFooterMontant,
-                        color: '#64748b',
-                      }}
-                    >
-                      {fmtEur(
-                        historique.reduce((s, r) => s + r.ca_mandataire, 0),
-                      )}
-                    </td>
-                    <td
-                      style={{
-                        ...tdFooterMontant,
-                        color: '#BA7517',
-                      }}
-                    >
-                      {fmtEur(historique.reduce((s, r) => s + r.frais, 0))}
+                      {fmtEur(totals.com_mandataire)}
                     </td>
                   </tr>
                 </tbody>
               </table>
             )}
           </Card>
-        </>
-      )}
-
-      {/* ── Section 3 : Détail commissions du mois courant ─── */}
-      <Card
-        title={`Détail commissions — ${MOIS_NOMS[curMonth]} ${curYear}${
-          loadingDetail ? ' (chargement…)' : ''
-        }`}
-      >
-        {commissionsMois.length === 0 ? (
-          <Empty label="Aucune commission ce mois-ci." />
-        ) : (
-          <>
-            <div
-              style={{
-                fontSize: 12,
-                color: '#64748b',
-                marginBottom: 10,
-              }}
-            >
-              Total commissions mandataires :{' '}
-              <strong
-                style={{
-                  color: '#00C18B',
-                  fontFamily: MONO,
-                  fontSize: 15,
-                }}
-              >
-                {fmtEur(totalMandataireMois)}
-              </strong>{' '}
-              · {commissionsMois.length} ligne
-              {commissionsMois.length > 1 ? 's' : ''}
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={tableStyle}>
-                <colgroup>
-                  {selected === 'Tous' && <col style={{ width: 100 }} />}
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 90 }} />
-                  <col style={{ width: 100 }} />
-                  <col style={{ width: 90 }} />
-                  <col style={{ width: 110 }} />
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 90 }} />
-                </colgroup>
-                <thead>
-                  <tr style={trHead}>
-                    {selected === 'Tous' && <th style={th}>Commercial</th>}
-                    <th style={th}>Client</th>
-                    <th style={th}>Compagnie</th>
-                    <th style={th}>Origine</th>
-                    <th style={th}>Type com.</th>
-                    <th style={thRight}>Com. société</th>
-                    <th style={thRight}>
-                      Com. mandataire
-                    </th>
-                    <th style={thRight}>Frais</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {commissionsMois.map((r) => {
-                    const oc = origineCol(r.origine)
-                    const cc = r.commercial_prenom
-                      ? COMM_COLORS[r.commercial_prenom] ?? '#64748b'
-                      : '#94a3b8'
-                    return (
-                      <tr
-                        key={r.id}
-                        style={trBody}
-                      >
-                        {selected === 'Tous' && (
-                          <td
-                            style={{
-                              ...td,
-                              color: cc,
-                              fontWeight: 600,
-                              fontSize: 12,
-                            }}
-                          >
-                            {r.commercial_prenom ?? '—'}
-                          </td>
-                        )}
-                        <td
-                          style={{
-                            ...td,
-                            fontWeight: 600,
-                            color: '#0f172a',
-                          }}
-                        >
-                          {r.client}
-                        </td>
-                        <td style={{ ...td, color: '#475569' }}>
-                          {r.compagnie_assureur ?? '—'}
-                        </td>
-                        <td style={td}>
-                          {r.origine ? (
-                            <span
-                              style={{
-                                background: `${oc}18`,
-                                color: oc,
-                                padding: '2px 8px',
-                                borderRadius: 4,
-                                fontSize: 11,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {r.origine}
-                            </span>
-                          ) : (
-                            <span style={{ color: '#cbd5e1' }}>—</span>
-                          )}
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            color: '#94a3b8',
-                            fontSize: 11,
-                          }}
-                        >
-                          {r.type_commission ?? '—'}
-                        </td>
-                        <td
-                          style={{
-                            ...tdMontant,
-                            color: '#0f172a',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {fmtEur(r.montant_com_societe)}
-                        </td>
-                        <td
-                          style={{
-                            ...tdMontant,
-                            color: '#00C18B',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {fmtEur(r.montant_com_mandataire)}
-                        </td>
-                        <td
-                          style={{
-                            ...tdMontant,
-                            color:
-                              r.montant_frais > 0 ? '#BA7517' : '#cbd5e1',
-                          }}
-                        >
-                          {r.montant_frais > 0
-                            ? fmtEur(r.montant_frais)
-                            : '—'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </Card>
-
-      {/* ── Section 4 : Bloc informatif instances ─────────── */}
-      <Card title="⚠️ Commissions en instance">
-        <div
-          style={{
-            background: '#fef3c7',
-            border: '1px solid #f59e0b',
-            borderRadius: 8,
-            padding: 14,
-            fontSize: 13,
-            color: '#92400e',
-            lineHeight: 1.6,
-          }}
-        >
-          <strong>Attention :</strong> certains contrats peuvent être en
-          instance auprès des compagnies (litiges, pièces manquantes,
-          dossiers incomplets). Les commissions associées à ces contrats
-          ne sont pas versées tant que l'instance n'est pas résolue.
-          <div
-            style={{ marginTop: 8, fontSize: 12, color: '#78350f' }}
-          >
-            → Consulter la vue <strong>Instances</strong> dans TessAdmin
-            pour le suivi des dossiers en attente.
-          </div>
-        </div>
-      </Card>
-
-      {/* ── Section 5 : Commissions perdues sur rétractations ── */}
-      <Card
-        title={`Commissions perdues — Rétractations${
-          loadingRetracs ? ' (chargement…)' : ''
-        }`}
-      >
-        {retractations.length === 0 ? (
-          <div
-            style={{
-              background: '#dcfce7',
-              border: '1px solid #1D9E7530',
-              borderRadius: 8,
-              padding: 14,
-              fontSize: 13,
-              color: '#15803d',
-              fontWeight: 600,
-            }}
-          >
-            ✓ Aucune rétractation
-            {selected !== 'Tous' ? ` pour ${selected}` : ''}.
-          </div>
-        ) : (
-          <>
-            <div
-              style={{
-                fontSize: 12,
-                color: '#64748b',
-                marginBottom: 10,
-              }}
-            >
-              Manque à gagner mandataire estimé :{' '}
-              <strong
-                style={{
-                  color: '#E24B4A',
-                  fontFamily: MONO,
-                  fontSize: 15,
-                }}
-              >
-                −{fmtEur(totalManqueAGagner)}
-              </strong>{' '}
-              sur {retractations.length} rétractation
-              {retractations.length > 1 ? 's' : ''}
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={tableStyle}>
-                <colgroup>
-                  {selected === 'Tous' && <col style={{ width: 100 }} />}
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 90 }} />
-                  <col style={{ width: 90 }} />
-                  <col style={{ width: 110 }} />
-                  <col style={{ width: 100 }} />
-                  <col style={{ width: 80 }} />
-                  <col style={{ width: 130 }} />
-                </colgroup>
-                <thead>
-                  <tr style={trHead}>
-                    {selected === 'Tous' && <th style={th}>Commercial</th>}
-                    <th style={th}>Client</th>
-                    <th style={th}>Compagnie</th>
-                    <th style={th}>Date</th>
-                    <th style={thRight}>Cotisation</th>
-                    <th style={th}>Origine</th>
-                    <th style={thRight}>Taux mand.</th>
-                    <th style={thRight}>
-                      Manque à gagner
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {retractations.map((r) => {
-                    const manque = comMandataireEstimee(r)
-                    const oc = origineCol(r.origine)
-                    const cc = r.commercial_prenom
-                      ? COMM_COLORS[r.commercial_prenom] ?? '#64748b'
-                      : '#94a3b8'
-                    return (
-                      <tr
-                        key={r.contrat_id}
-                        style={trBody}
-                      >
-                        {selected === 'Tous' && (
-                          <td
-                            style={{
-                              ...td,
-                              color: cc,
-                              fontWeight: 600,
-                              fontSize: 12,
-                            }}
-                          >
-                            {r.commercial_prenom ?? '—'}
-                          </td>
-                        )}
-                        <td
-                          style={{
-                            ...td,
-                            fontWeight: 600,
-                            color: '#0f172a',
-                          }}
-                        >
-                          {r.client}
-                        </td>
-                        <td style={{ ...td, color: '#475569' }}>
-                          {r.compagnie_assureur ?? '—'}
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            color: '#94a3b8',
-                            fontFamily: MONO,
-                            fontSize: 11,
-                          }}
-                        >
-                          {r.date_signature
-                            ? new Date(r.date_signature).toLocaleDateString(
-                                'fr-FR',
-                              )
-                            : '—'}
-                        </td>
-                        <td
-                          style={{
-                            ...tdMontant,
-                            color: '#475569',
-                          }}
-                        >
-                          {r.cotisation_mensuelle
-                            ? fmtEur(r.cotisation_mensuelle) + '/m'
-                            : '—'}
-                        </td>
-                        <td style={td}>
-                          {r.origine ? (
-                            <span
-                              style={{
-                                background: `${oc}18`,
-                                color: oc,
-                                padding: '2px 8px',
-                                borderRadius: 4,
-                                fontSize: 11,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {r.origine}
-                            </span>
-                          ) : (
-                            <span style={{ color: '#cbd5e1' }}>—</span>
-                          )}
-                        </td>
-                        <td
-                          style={{
-                            ...tdMontant,
-                            color: '#64748b',
-                            fontSize: 11,
-                          }}
-                        >
-                          {(r.taux_mandataire * 100).toFixed(0)}%
-                        </td>
-                        <td
-                          style={{
-                            ...tdMontant,
-                            color: '#E24B4A',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {manque > 0 ? `−${fmtEur(manque)}` : '—'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 11,
-                color: '#94a3b8',
-                fontStyle: 'italic',
-              }}
-            >
-              (*) Estimation basée sur la cotisation mensuelle et les taux
-              de commission 1ère année moyens par produit (PA 30/PA 34/PS
-              25/LE 20). Le taux mandataire est calculé serveur depuis
-              l'origine du lead.
-            </div>
-          </>
-        )}
-      </Card>
-
-      {/* Référentiel taux mandataires (toujours visible) */}
-      <Card title="Référentiel — Taux mandataires">
-        <table style={tableStyle}>
-          <colgroup>
-            <col style={{ width: 180 }} />
-            <col style={{ width: 80 }} />
-            <col />
-          </colgroup>
-          <thead>
-            <tr style={trHead}>
-              <th style={th}>Source</th>
-              <th style={thRight}>Taux</th>
-              <th style={th}>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            {REFERENTIEL_TAUX.map((r) => (
-              <tr key={r.source} style={trBody}>
-                <td
-                  style={{
-                    ...td,
-                    fontWeight: 600,
-                    color: '#0f172a',
-                  }}
-                >
-                  {r.source}
-                </td>
-                <td
-                  style={{
-                    ...tdMontant,
-                    color: '#00C18B',
-                    fontWeight: 700,
-                  }}
-                >
-                  {r.taux}
-                </td>
-                <td style={{ ...td, color: '#64748b', fontSize: 12 }}>
-                  {r.description}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+        )
+      })}
     </div>
   )
 }
 
-// ── Sub-composants ──────────────────────────────────────────
-
-interface ObjectifRowProps {
-  label: string
-  objectif: number
-  realise: number
-  format: (n: number) => string
-}
-
-function ObjectifRow({ label, objectif, realise, format }: ObjectifRowProps) {
-  const pct = objectif > 0 ? (realise / objectif) * 100 : 0
-  const statut = statutCouleur(pct)
-  return (
-    <tr style={trBody}>
-      <td style={{ ...td, fontWeight: 500, color: '#475569' }}>{label}</td>
-      <td
-        style={{
-          ...tdMontant,
-          color: '#94a3b8',
-        }}
-      >
-        {format(objectif)}
-      </td>
-      <td
-        style={{
-          ...tdMontant,
-          color: '#0f172a',
-          fontWeight: 600,
-        }}
-      >
-        {format(realise)}
-      </td>
-      <td
-        style={{
-          ...tdRight,
-          color: statut.color,
-          fontWeight: 700,
-        }}
-      >
-        {pct.toFixed(0)}%
-      </td>
-      <td style={tdCenter}>
-        <span
-          style={{
-            display: 'inline-block',
-            background: statut.background,
-            color: statut.color,
-            width: 22,
-            height: 22,
-            borderRadius: '50%',
-            lineHeight: '22px',
-            fontSize: 11,
-            fontWeight: 700,
-          }}
-        >
-          {statut.label}
-        </span>
-      </td>
-    </tr>
-  )
-}
-
-interface KpiProps {
-  label: string
-  value: string
-  hint?: string
-  color?: string
-}
-
-function Kpi({ label, value, hint, color }: KpiProps) {
-  return (
-    <div
-      style={{
-        background: '#fff',
-        border: '1px solid #e2e8f0',
-        borderRadius: 10,
-        padding: 18,
-      }}
-    >
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
-        {label.toUpperCase()}
-      </div>
-      <div
-        style={{
-          fontSize: 24,
-          fontWeight: 700,
-          margin: '6px 0 2px',
-          color: color ?? '#0f172a',
-          fontFamily: MONO,
-        }}
-      >
-        {value}
-      </div>
-      {hint && (
-        <div style={{ color: '#94a3b8', fontSize: 12 }}>{hint}</div>
-      )}
-    </div>
-  )
-}
-
-function MiniKpi({
-  label,
-  value,
-  primary,
-}: {
-  label: string
-  value: string
-  primary?: boolean
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
-        padding: '4px 0',
-        borderBottom: '1px solid rgba(0,0,0,0.05)',
-      }}
-    >
-      <span style={{ fontSize: 11, color: '#64748b' }}>{label}</span>
-      <span
-        style={{
-          fontFamily: MONO,
-          fontSize: primary ? 15 : 12,
-          fontWeight: primary ? 700 : 600,
-          color: primary ? '#00C18B' : '#0f172a',
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
+// ── Sub-components ──────────────────────────────────────────
 
 function Card({
   title,
+  titleColor,
   children,
 }: {
   title: string
+  titleColor?: string
   children: React.ReactNode
 }) {
   return (
@@ -1198,7 +588,15 @@ function Card({
         padding: 18,
       }}
     >
-      <h3 style={{ margin: '0 0 14px', fontSize: 14 }}>{title}</h3>
+      <h3
+        style={{
+          margin: '0 0 14px',
+          fontSize: 15,
+          color: titleColor ?? '#0f172a',
+        }}
+      >
+        {title}
+      </h3>
       {children}
     </div>
   )
@@ -1210,6 +608,28 @@ function Empty({ label }: { label: string }) {
       {label}
     </div>
   )
+}
+
+const subTh: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '4px 8px',
+  borderBottom: '1px solid #e5e7eb',
+}
+const subTd: React.CSSProperties = { padding: '6px 8px' }
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#64748b',
+}
+const inputStyle: React.CSSProperties = {
+  background: '#f9fafb',
+  border: '1px solid #d1d5db',
+  color: '#374151',
+  borderRadius: 6,
+  padding: '6px 10px',
+  fontSize: 12,
+  outline: 'none',
 }
 
 export default Mandataires
