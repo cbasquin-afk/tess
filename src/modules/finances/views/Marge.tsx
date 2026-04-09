@@ -50,7 +50,6 @@ function fmtMois(annee: number, mois: number): string {
 }
 
 const CATEGORIES = [
-  'Leads (Mapapp)',
   'OGGO',
   'Téléphonie',
   'Communication',
@@ -59,7 +58,6 @@ const CATEGORIES = [
 ] as const
 
 const FOURNISSEURS_PAR_CATEGORIE: Record<string, string[] | null> = {
-  'Leads (Mapapp)': ['Mapapp'],
   OGGO: ['Oggo', 'Gocardless OGGO'],
   Téléphonie: ['Ringover'],
   Communication: ['JRMC', 'ON OFF', 'Autre'],
@@ -138,16 +136,14 @@ interface ChargeFormState {
   fournisseur: string
   libelle: string
   montant: number
-  nb_leads: number | null
   notes: string
 }
 
 const EMPTY_FORM: ChargeFormState = {
   categorie: CATEGORIES[0],
-  fournisseur: 'Mapapp',
+  fournisseur: 'Oggo',
   libelle: '',
   montant: 0,
-  nb_leads: null,
   notes: '',
 }
 
@@ -225,6 +221,8 @@ function Marge() {
       (acc, r) => ({
         com_societe: acc.com_societe + r.com_societe,
         frais_service: acc.frais_service + r.frais_service,
+        nb_leads: acc.nb_leads + r.nb_leads,
+        cout_leads: acc.cout_leads + r.cout_leads,
         reprises: acc.reprises + r.reprises,
         total_charges: acc.total_charges + r.total_charges,
         marge_nette: acc.marge_nette + r.marge_nette,
@@ -232,6 +230,8 @@ function Marge() {
       {
         com_societe: 0,
         frais_service: 0,
+        nb_leads: 0,
+        cout_leads: 0,
         reprises: 0,
         total_charges: 0,
         marge_nette: 0,
@@ -280,7 +280,6 @@ function Marge() {
         fournisseur: form.fournisseur,
         libelle: form.libelle || null,
         montant: form.montant,
-        nb_leads: form.nb_leads,
         notes: form.notes || null,
       })
       setShowForm(false)
@@ -313,7 +312,6 @@ function Marge() {
       fournisseur: charge.fournisseur,
       libelle: charge.libelle ?? '',
       montant: charge.montant,
-      nb_leads: charge.nb_leads,
       notes: charge.notes ?? '',
     })
     setShowForm(true)
@@ -327,16 +325,6 @@ function Marge() {
       ...prev,
       categorie: cat,
       fournisseur: fournisseurs ? fournisseurs[0] : '',
-      nb_leads: cat === 'Leads (Mapapp)' ? prev.nb_leads ?? 0 : null,
-      montant: cat === 'Leads (Mapapp)' ? (prev.nb_leads ?? 0) * 14.5 * 1.2 : prev.montant,
-    }))
-  }, [])
-
-  const updateNbLeads = useCallback((nb: number) => {
-    setForm((prev) => ({
-      ...prev,
-      nb_leads: nb,
-      montant: Math.round(nb * 14.5 * 1.2 * 100) / 100,
     }))
   }, [])
 
@@ -392,21 +380,25 @@ function Marge() {
           <table style={tableStyle}>
             <colgroup>
               <col style={{ width: 30 }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '16%' }} />
               <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '16%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '13%' }} />
             </colgroup>
             <thead>
               <tr style={trHead}>
                 <th style={th} />
                 <th style={th}>Période</th>
-                <th style={thRight}>Com' Tessoria</th>
+                <th style={thRight}>Com&apos; Tessoria</th>
                 <th style={thRight}>Frais serv.</th>
-                <th style={thRight}>Reprises</th>
-                <th style={thRight}>Charges totales</th>
+                <th style={thRight}>Leads</th>
+                <th style={thRight}>Coût leads</th>
+                <th style={thRight}>Autres charges</th>
+                <th style={thRight}>Total charges</th>
                 <th style={thRight}>Marge nette</th>
               </tr>
             </thead>
@@ -434,8 +426,16 @@ function Marge() {
                       <td style={{ ...tdMontant, color: '#64748b' }}>
                         {fmtEur(r.frais_service)}
                       </td>
+                      <td style={tdMontant}>
+                        {r.nb_leads}
+                        <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 4 }}>leads</span>
+                      </td>
                       <td style={{ ...tdMontant, color: '#64748b' }}>
-                        {fmtEur(r.reprises)}
+                        {fmtEur(r.cout_leads)}
+                        <span style={{ fontSize: 9, color: '#cbd5e1', marginLeft: 3 }}>(auto)</span>
+                      </td>
+                      <td style={{ ...tdMontant, color: '#BA7517' }}>
+                        {fmtEur(r.total_charges - r.cout_leads)}
                       </td>
                       <td style={{ ...tdMontant, color: '#BA7517' }}>
                         {fmtEur(r.total_charges)}
@@ -452,7 +452,7 @@ function Marge() {
                     </tr>
                     {isExpanded && (
                       <tr key={`${key}-detail`} style={{ background: '#f8fafc' }}>
-                        <td colSpan={7} style={{ padding: '10px 20px 14px 40px' }}>
+                        <td colSpan={9} style={{ padding: '10px 20px 14px 40px' }}>
                           {!charges ? (
                             <div style={{ color: '#64748b', fontSize: 12 }}>
                               Chargement...
@@ -496,8 +496,14 @@ function Marge() {
                 <td style={{ ...tdFooterMontant, color: '#64748b' }}>
                   {fmtEur(totals.frais_service)}
                 </td>
+                <td style={{ ...tdFooterMontant, color: '#0f172a' }}>
+                  {totals.nb_leads}
+                </td>
                 <td style={{ ...tdFooterMontant, color: '#64748b' }}>
-                  {fmtEur(totals.reprises)}
+                  {fmtEur(totals.cout_leads)}
+                </td>
+                <td style={{ ...tdFooterMontant, color: '#BA7517' }}>
+                  {fmtEur(totals.total_charges - totals.cout_leads)}
                 </td>
                 <td style={{ ...tdFooterMontant, color: '#BA7517' }}>
                   {fmtEur(totals.total_charges)}
@@ -514,6 +520,9 @@ function Marge() {
             </tbody>
           </table>
         )}
+        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, marginBottom: 0 }}>
+          Coût leads = nb leads Mapapp × 14,50 € × 1,20 — mis à jour automatiquement depuis PerfLead
+        </p>
       </Card>
 
       {/* Section 3: Saisie des charges */}
@@ -562,30 +571,48 @@ function Marge() {
                 </tr>
               </thead>
               <tbody>
-                {saisieCharges.map((c) => (
-                  <tr key={c.id} style={trBody}>
-                    <td style={td}>{c.categorie}</td>
-                    <td style={td}>{c.fournisseur}</td>
-                    <td style={{ ...td, color: '#64748b' }}>{c.libelle ?? '—'}</td>
-                    <td style={tdMontant}>{fmtEur(c.montant)}</td>
-                    <td style={{ ...td, textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleEdit(c)}
-                        style={iconBtnStyle}
-                        title="Modifier"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        style={iconBtnStyle}
-                        title="Supprimer"
-                      >
-                        🗑️
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {saisieCharges.map((c) => {
+                  const isLegacyLead =
+                    c.categorie.toLowerCase().includes('lead') ||
+                    c.fournisseur.toLowerCase() === 'mapapp'
+                  return (
+                    <tr key={c.id} style={trBody}>
+                      <td style={td}>
+                        {c.categorie}
+                        {isLegacyLead && (
+                          <span style={{ fontSize: 9, color: '#94a3b8', marginLeft: 4 }}>
+                            (calculé automatiquement)
+                          </span>
+                        )}
+                      </td>
+                      <td style={td}>{c.fournisseur}</td>
+                      <td style={{ ...td, color: '#64748b' }}>{c.libelle ?? '—'}</td>
+                      <td style={tdMontant}>{fmtEur(c.montant)}</td>
+                      <td style={{ ...td, textAlign: 'center' }}>
+                        {isLegacyLead ? (
+                          <span style={{ color: '#cbd5e1', fontSize: 11 }}>—</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleEdit(c)}
+                              style={iconBtnStyle}
+                              title="Modifier"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDelete(c.id)}
+                              style={iconBtnStyle}
+                              title="Supprimer"
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )
@@ -664,19 +691,6 @@ function Marge() {
                 />
               </label>
 
-              {/* Nb leads (conditional) */}
-              {form.categorie === 'Leads (Mapapp)' && (
-                <label style={labelStyle}>
-                  Nb leads
-                  <input
-                    type="number"
-                    value={form.nb_leads ?? 0}
-                    onChange={(e) => updateNbLeads(Number(e.target.value))}
-                    style={{ ...inputStyle, width: 80 }}
-                  />
-                </label>
-              )}
-
               {/* Montant */}
               <label style={labelStyle}>
                 Montant
@@ -687,13 +701,7 @@ function Marge() {
                   onChange={(e) =>
                     setForm((p) => ({ ...p, montant: Number(e.target.value) }))
                   }
-                  disabled={form.categorie === 'Leads (Mapapp)'}
-                  style={{
-                    ...inputStyle,
-                    width: 100,
-                    background:
-                      form.categorie === 'Leads (Mapapp)' ? '#e2e8f0' : '#fff',
-                  }}
+                  style={{ ...inputStyle, width: 100 }}
                 />
               </label>
 

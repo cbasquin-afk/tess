@@ -136,6 +136,7 @@ export interface MargeMensuelle {
   com_societe: number
   frais_service: number
   reprises: number
+  nb_leads: number
   cout_leads: number
   cout_oggo: number
   cout_telephonie: number
