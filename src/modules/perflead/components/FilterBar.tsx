@@ -19,7 +19,7 @@ const CATEGORIES = [
 const ORIGINES = [
   'Back-office',
   'MapApp Digital',
-  'Multi-équipement',
+  'Multi Equipement',
   'Recommandation',
   'Site web',
 ] as const
