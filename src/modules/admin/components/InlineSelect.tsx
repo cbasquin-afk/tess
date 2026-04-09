@@ -62,35 +62,40 @@ export function InlineSelect({
     : (current?.color ?? '#94a3b8')
 
   return (
-    <select
-      value={localValue}
-      onChange={(e) => {
-        void handleChange(e)
-      }}
-      onClick={(e) => e.stopPropagation()}
-      disabled={saving}
-      title={error ? 'Erreur de sauvegarde' : undefined}
-      style={{
-        border: `1px solid ${color}30`,
-        backgroundColor: `${color}15`,
-        color,
-        fontWeight: 600,
-        fontSize: 11,
-        borderRadius: 4,
-        padding: '3px 6px',
-        cursor: saving ? 'wait' : 'pointer',
-        outline: 'none',
-        fontFamily: 'inherit',
-        appearance: 'none',
-        WebkitAppearance: 'none',
-        MozAppearance: 'none',
-        paddingRight: 18,
-        // Petite flèche custom
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='${encodeURIComponent(color)}' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E")`,
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'right 5px center',
-      }}
-    >
+    <>
+      <style>{`
+        .tess-inline-select {
+          -webkit-appearance: none !important;
+          -moz-appearance: none !important;
+          appearance: none !important;
+        }
+      `}</style>
+      <select
+        className="tess-inline-select"
+        value={localValue}
+        onChange={(e) => {
+          void handleChange(e)
+        }}
+        onClick={(e) => e.stopPropagation()}
+        disabled={saving}
+        title={error ? 'Erreur de sauvegarde' : undefined}
+        style={{
+          border: `1px solid ${color}30`,
+          backgroundColor: `${color}15`,
+          color,
+          fontWeight: 600,
+          fontSize: 11,
+          borderRadius: 4,
+          padding: '3px 6px',
+          cursor: saving ? 'wait' : 'pointer',
+          outline: 'none',
+          fontFamily: 'inherit',
+          paddingRight: 18,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='${encodeURIComponent(color)}' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right 5px center',
+        }}
+      >
       <option value="">{placeholder}</option>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
@@ -98,5 +103,6 @@ export function InlineSelect({
         </option>
       ))}
     </select>
+    </>
   )
 }
