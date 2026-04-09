@@ -1,14 +1,15 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { FinancesProvider } from './context/FinancesContext'
+import { lazyWithRetry } from '@/shared/lazyWithRetry'
 
-const Dashboard = lazy(() => import('./views/Dashboard'))
-const CA = lazy(() => import('./views/CA'))
-const Mandataires = lazy(() => import('./views/Mandataires'))
-const Portefeuille = lazy(() => import('./views/Portefeuille'))
-const Versements = lazy(() => import('./views/Versements'))
-const Reprises = lazy(() => import('./views/Reprises'))
-const Marge = lazy(() => import('./views/Marge'))
+const Dashboard = lazyWithRetry(() => import('./views/Dashboard'))
+const CA = lazyWithRetry(() => import('./views/CA'))
+const Mandataires = lazyWithRetry(() => import('./views/Mandataires'))
+const Portefeuille = lazyWithRetry(() => import('./views/Portefeuille'))
+const Versements = lazyWithRetry(() => import('./views/Versements'))
+const Reprises = lazyWithRetry(() => import('./views/Reprises'))
+const Marge = lazyWithRetry(() => import('./views/Marge'))
 
 // FinancesProvider wrap tout le module : 1 seul fetch (commissions +
 // contrats lean) au mount, partagé entre Dashboard / CA / Mandataires

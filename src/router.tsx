@@ -1,15 +1,15 @@
-import { lazy } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { Shell } from './shell/Shell'
 import { AuthGuard } from './shared/auth/AuthGuard'
 import { MODULES } from './shell/modules.config'
+import { lazyWithRetry } from './shared/lazyWithRetry'
 import type { ModuleConfig } from './shared/types'
 
-const Login = lazy(() => import('./shell/Login'))
-const Forbidden = lazy(() => import('./shell/Forbidden'))
+const Login = lazyWithRetry(() => import('./shell/Login'))
+const Forbidden = lazyWithRetry(() => import('./shell/Forbidden'))
 
 function lazyModule(m: ModuleConfig) {
-  const Component = lazy(m.loader)
+  const Component = lazyWithRetry(m.loader)
   const element = (
     <AuthGuard minRole={m.minRole}>
       <Component />

@@ -1,22 +1,23 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { PerfLeadFiltersProvider } from './context/FiltersContext'
 import { FilterBar } from './components/FilterBar'
+import { lazyWithRetry } from '@/shared/lazyWithRetry'
 
-const Dashboard = lazy(() => import('./views/Dashboard'))
-const Import = lazy(() => import('./views/Import'))
-const Commerciaux = lazy(() => import('./views/Commerciaux'))
-const Contrats = lazy(() => import('./views/Contrats'))
-const Hebdo = lazy(() => import('./views/Hebdo'))
-const Analyse = lazy(() => import('./views/Analyse'))
-const Gammes = lazy(() => import('./views/Gammes'))
-const Ages = lazy(() => import('./views/Ages'))
-const Pipeline = lazy(() => import('./views/Pipeline'))
-const Entonnoir = lazy(() => import('./views/Entonnoir'))
-const Statuts = lazy(() => import('./views/Statuts'))
-const Alertes = lazy(() => import('./views/Alertes'))
-const Personae = lazy(() => import('./views/Personae'))
-const Fournisseur = lazy(() => import('./views/Fournisseur'))
+const Dashboard = lazyWithRetry(() => import('./views/Dashboard'))
+const Import = lazyWithRetry(() => import('./views/Import'))
+const Commerciaux = lazyWithRetry(() => import('./views/Commerciaux'))
+const Contrats = lazyWithRetry(() => import('./views/Contrats'))
+const Hebdo = lazyWithRetry(() => import('./views/Hebdo'))
+const Analyse = lazyWithRetry(() => import('./views/Analyse'))
+const Gammes = lazyWithRetry(() => import('./views/Gammes'))
+const Ages = lazyWithRetry(() => import('./views/Ages'))
+const Pipeline = lazyWithRetry(() => import('./views/Pipeline'))
+const Entonnoir = lazyWithRetry(() => import('./views/Entonnoir'))
+const Statuts = lazyWithRetry(() => import('./views/Statuts'))
+const Alertes = lazyWithRetry(() => import('./views/Alertes'))
+const Personae = lazyWithRetry(() => import('./views/Personae'))
+const Fournisseur = lazyWithRetry(() => import('./views/Fournisseur'))
 
 function PerfLeadModule() {
   // FilterBar dans le flux normal du contenu (le Shell.main fournit déjà

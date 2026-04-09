@@ -1,14 +1,15 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { ContractsProvider } from './context/ContractsContext'
 import { KpisProvider } from './context/KpisContext'
+import { lazyWithRetry } from '@/shared/lazyWithRetry'
 
-const Dashboard = lazy(() => import('./views/Dashboard'))
-const Instances = lazy(() => import('./views/Instances'))
-const Contrats = lazy(() => import('./views/Contrats'))
-const Saisie = lazy(() => import('./views/Saisie'))
-const Clotures = lazy(() => import('./views/Clotures'))
-const Frais = lazy(() => import('./views/Frais'))
+const Dashboard = lazyWithRetry(() => import('./views/Dashboard'))
+const Instances = lazyWithRetry(() => import('./views/Instances'))
+const Contrats = lazyWithRetry(() => import('./views/Contrats'))
+const Saisie = lazyWithRetry(() => import('./views/Saisie'))
+const Clotures = lazyWithRetry(() => import('./views/Clotures'))
+const Frais = lazyWithRetry(() => import('./views/Frais'))
 
 // Layout route : wrap les vues qui consomment la liste contrats dans
 // un ContractsProvider partagé. Le Provider survit aux navigations
