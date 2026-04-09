@@ -38,6 +38,7 @@ const ORIGINE_COLORS: Record<string, { bg: string; fg: string }> = {
   Mapapp: { bg: '#dbeafe', fg: '#1e40af' },
   Site: { bg: '#ede9fe', fg: '#5b21b6' },
   Recommandation: { bg: '#dcfce7', fg: '#15803d' },
+  'Multi-équipement': { bg: '#fef3c7', fg: '#92400e' },
   'Back-office': { bg: '#f3f4f6', fg: '#374151' },
 }
 
@@ -51,7 +52,7 @@ const TYPE_CONTRAT_OPTIONS = [
   'PJ',
 ] as const
 
-const ORIGINE_OPTIONS = ['Mapapp', 'Recommandation', 'Site'] as const
+const ORIGINE_OPTIONS = ['Mapapp', 'Multi-équipement', 'Recommandation', 'Site'] as const
 
 type FilterPill =
   | 'all'

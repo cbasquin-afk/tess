@@ -17,10 +17,11 @@ const CATEGORIES = [
 ] as const
 
 const ORIGINES = [
-  'MapApp Digital',
   'Back-office',
-  'Site web',
+  'MapApp Digital',
+  'Multi-équipement',
   'Recommandation',
+  'Site web',
 ] as const
 
 // Valeurs alignées sur le natif (index.html / filter-verticale)
