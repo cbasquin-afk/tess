@@ -88,17 +88,31 @@ function fmtMois(annee: number, mois: number): string {
   return `${MOIS_NOMS[mois] ?? mois} ${annee}`
 }
 
-// Estimation du taux compagnie 1ère année basée sur le code type_commission
-// (PA = 1ère année, LE = linéaire). Approximation honnête, à affiner quand
-// la base aura les vrais taux par type.
+// Estimation du taux compagnie 1ère année basée sur le code
+// type_commission. Regex universelle qui extrait le premier nombre
+// après le préfixe (PA, PS, LE, LR, LA, Linéaire) — couvre tous les
+// formats trouvés en base : 'PA 34/10', 'PS 40/12/8', 'LR 30/10',
+// 'LA 10', 'Linéaire 20', etc.
 function tauxCompagnieEstime(typeCommission: string | null): number {
   if (!typeCommission) return 0.3
-  if (typeCommission.startsWith('PA 34')) return 0.34
-  if (typeCommission.startsWith('PA 30')) return 0.3
-  if (typeCommission.startsWith('LE 20')) return 0.2
-  if (typeCommission.startsWith('PS 25')) return 0.25
-  if (typeCommission.startsWith('PS 30')) return 0.3
-  return 0.3
+  const tc = typeCommission.toUpperCase().trim()
+
+  // Préfixes PA / PS : 1ère année
+  const matchPaPs = tc.match(/^(?:PA|PS)\s+(\d+)/)
+  if (matchPaPs && matchPaPs[1]) return parseInt(matchPaPs[1], 10) / 100
+
+  // Préfixes LE / LR / LA : linéaire annoncé
+  const matchLeLrLa = tc.match(/^(?:LE|LR|LA)\s+(\d+)/)
+  if (matchLeLrLa && matchLeLrLa[1])
+    return parseInt(matchLeLrLa[1], 10) / 100
+
+  // 'Linéaire X' ou 'Lineaire X'
+  if (tc.startsWith('LINÉAIRE') || tc.startsWith('LINEAIRE')) {
+    const m = tc.match(/(\d+)/)
+    if (m && m[1]) return parseInt(m[1], 10) / 100
+  }
+
+  return 0.3 // défaut prudent
 }
 
 // Manque à gagner mandataire estimé sur une rétractation :

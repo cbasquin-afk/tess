@@ -9,11 +9,14 @@ import type {
 } from './types'
 
 export async function fetchAllCommissions(): Promise<CommissionRow[]> {
+  // type_ligne='commission' uniquement — exclut les 'renouvellement'
+  // qui sont des projections futures et fausseraient les KPIs CA réel.
   const { data, error } = await supabase
     .from('tadmin_v_commissions')
     .select(
       'contrat_id, annee, mois, montant_com_societe, montant_com_mandataire, montant_frais, type_ligne',
     )
+    .eq('type_ligne', 'commission')
   if (error) throw new Error(`tadmin_v_commissions: ${error.message}`)
   return (data ?? []).map((r) => ({
     contrat_id: r.contrat_id as string,
@@ -74,11 +77,15 @@ export async function fetchCommissionsDetail(): Promise<CommissionDetail[]> {
   }))
 }
 
-// ── Vue portefeuille (contrats récurrents validés + com 10%) ─
+// ── Vue portefeuille (renouvellements prévisionnels par mois) ─
+// 1 ligne par mois de renouvellement prévu pour chaque contrat actif.
+// Tri annee ASC, mois ASC pour avoir l'ordre chronologique.
 export async function fetchPortefeuille(): Promise<PortefeuilleRow[]> {
   const { data, error } = await supabase
     .from('tadmin_v_portefeuille')
     .select('*')
+    .order('annee', { ascending: true })
+    .order('mois', { ascending: true })
   if (error) throw new Error(`tadmin_v_portefeuille: ${error.message}`)
   return (data ?? []).map((r) => ({
     commercial_id: (r.commercial_id as string | null) ?? null,
@@ -88,11 +95,16 @@ export async function fetchPortefeuille(): Promise<PortefeuilleRow[]> {
     compagnie_assureur: (r.compagnie_assureur as string | null) ?? null,
     date_signature: (r.date_signature as string | null) ?? null,
     date_effet: (r.date_effet as string | null) ?? null,
-    cotisation_mensuelle: Number(r.cotisation_mensuelle) || 0,
+    cotisation_mensuelle:
+      r.cotisation_mensuelle !== null && r.cotisation_mensuelle !== undefined
+        ? Number(r.cotisation_mensuelle)
+        : null,
     type_commission: (r.type_commission as string | null) ?? null,
     origine: (r.origine as string | null) ?? null,
-    com_lineaire_mensuelle: Number(r.com_lineaire_mensuelle) || 0,
-    com_lineaire_annuelle: Number(r.com_lineaire_annuelle) || 0,
+    annee: Number(r.annee),
+    mois: Number(r.mois),
+    com_societe: Number(r.com_societe) || 0,
+    com_mandataire: Number(r.com_mandataire) || 0,
   }))
 }
 

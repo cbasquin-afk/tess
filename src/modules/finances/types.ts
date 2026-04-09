@@ -63,7 +63,11 @@ export interface CommissionDetail {
   commercial_prenom: string | null
 }
 
-// ── Vue tadmin_v_portefeuille ─────────────────────────────────
+// ── Vue tadmin_v_portefeuille (nouvelle structure) ───────────
+// Désormais 1 ligne par mois de renouvellement prévu, source : moteur
+// de calcul Supabase. Anciennes colonnes com_lineaire_* supprimées.
+// Chaque contrat a N lignes (une par mois prévu), avec com_societe et
+// com_mandataire calculés serveur depuis commissions_prevues.
 export interface PortefeuilleRow {
   commercial_id: string | null
   commercial_prenom: string | null
@@ -72,11 +76,13 @@ export interface PortefeuilleRow {
   compagnie_assureur: string | null
   date_signature: string | null
   date_effet: string | null
-  cotisation_mensuelle: number
+  cotisation_mensuelle: number | null
   type_commission: string | null
   origine: string | null
-  com_lineaire_mensuelle: number
-  com_lineaire_annuelle: number
+  annee: number
+  mois: number
+  com_societe: number
+  com_mandataire: number
 }
 
 // ── Vue tadmin_v_retractations ────────────────────────────────

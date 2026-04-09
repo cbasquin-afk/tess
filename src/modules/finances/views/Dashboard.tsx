@@ -358,6 +358,32 @@ function Dashboard() {
             </tbody>
           </table>
         )}
+        {/* Alerte CA non attribué : delta entre total mois (vue
+            tadmin_v_kpis) et somme des 4 commerciaux. Indique des
+            contrats sans commercial_id à corriger côté TessAdmin. */}
+        {(() => {
+          const totalGlobal = kpisCurrentMonth.ca_societe
+          const nonAttribue = totalGlobal - totalSocieteMois
+          if (nonAttribue <= 1) return null
+          return (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '10px 14px',
+                background: '#fef3c7',
+                border: '1px solid #f59e0b',
+                borderRadius: 6,
+                fontSize: 12,
+                color: '#92400e',
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ <strong>{fmtEur(nonAttribue)}</strong> de CA non attribué à
+              un commercial ce mois. Contrats sans commercial_id dans
+              TessAdmin → vue Saisie.
+            </div>
+          )
+        })()}
       </Card>
 
       {/* TDB Tessoria — 3 derniers mois × commerciaux */}
