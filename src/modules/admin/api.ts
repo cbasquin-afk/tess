@@ -18,12 +18,12 @@ export async function fetchKpis(): Promise<TadminKpis | null> {
 }
 
 export async function fetchInstances(): Promise<TadminInstance[]> {
-  // Le natif charge uniquement les instances ouvertes, ordonnées par
-  // deadline ASC (les plus urgentes en premier, NULL en dernier).
+  // Instances non résolues : 'ouvert' (ancien) + 'En cours' (nouveau).
+  // Tri deadline ASC, NULL en dernier.
   const { data, error } = await supabase
     .from('tadmin_v_instances')
     .select('*')
-    .eq('statut', 'ouvert')
+    .in('statut', ['ouvert', 'En cours'])
     .order('deadline', { ascending: true, nullsFirst: false })
   if (error) throw new Error(`tadmin_v_instances: ${error.message}`)
   return (data ?? []) as TadminInstance[]
