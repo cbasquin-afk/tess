@@ -213,7 +213,7 @@ export async function fetchResiliationsV2(): Promise<ResiliationV2Row[]> {
   const { data, error } = await supabase
     .from('tadmin_v_resiliations_v2')
     .select('*')
-    .order('date_resiliation', { ascending: false })
+    .order('date_resiliation_perflead', { ascending: false, nullsFirst: false })
   if (error) throw new Error(`tadmin_v_resiliations_v2: ${error.message}`)
   return (data ?? []) as ResiliationV2Row[]
 }

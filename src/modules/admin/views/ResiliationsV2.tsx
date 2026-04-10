@@ -3,14 +3,6 @@ import { fetchResiliationsV2 } from '../api'
 import { ClientCell } from '../components/ClientCell'
 import type { ResiliationV2Row } from '../types'
 
-const STATUT_COLORS: Record<string, string> = {
-  'EN ATTENTE': '#BA7517',
-  'ENVOYÉE': '#378ADD',
-  'AR COMPAGNIE': '#1D9E75',
-  'RAF': '#1D9E75',
-  'REFUSEE': '#E24B4A',
-}
-
 const COMMERCIAL_COLORS: Record<string, string> = {
   Charlotte: '#378ADD',
   Cheyenne: '#BA7517',
@@ -34,9 +26,34 @@ function fmtDate(iso: string | null): string {
   }
 }
 
-function statutColor(statut: string | null): string {
-  if (!statut) return '#94a3b8'
-  return STATUT_COLORS[statut.toUpperCase()] ?? '#94a3b8'
+function fmtEur(n: number | null): string {
+  if (n === null) return '—'
+  return (
+    n.toLocaleString('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }) + ' €'
+  )
+}
+
+function statutBadge(statut: string | null) {
+  if (!statut) return <span style={{ color: '#cbd5e1' }}>—</span>
+  const isReplace = statut.toLowerCase().includes('replacé') && !statut.toLowerCase().includes('non')
+  const color = isReplace ? '#1D9E75' : '#E24B4A'
+  return (
+    <span
+      style={{
+        background: `${color}18`,
+        color,
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 11,
+        fontWeight: 600,
+      }}
+    >
+      {statut}
+    </span>
+  )
 }
 
 function ResiliationsV2() {
@@ -78,7 +95,7 @@ function ResiliationsV2() {
   }, [rows, search])
 
   if (loading)
-    return <div style={{ color: '#64748b' }}>Chargement...</div>
+    return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
 
   return (
@@ -86,7 +103,7 @@ function ResiliationsV2() {
       <div>
         <h1 style={{ margin: 0, fontSize: 24 }}>Résiliations</h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Résiliations ancienne mutuelle en cours — lettres et accusés de réception
+          Contrats résiliés dans OGGO (Résilié replacé / non replacé)
         </p>
       </div>
 
@@ -109,7 +126,7 @@ function ResiliationsV2() {
           onChange={(e: ChangeEvent<HTMLInputElement>) =>
             setSearch(e.target.value)
           }
-          placeholder="Rechercher un client..."
+          placeholder="Rechercher un client…"
           style={{
             padding: '6px 12px',
             fontSize: 13,
@@ -164,17 +181,16 @@ function ResiliationsV2() {
                 <th style={th}>Client</th>
                 <th style={th}>Commercial</th>
                 <th style={th}>Compagnie</th>
+                <th style={th}>Cotis.</th>
+                <th style={th}>Statut OGGO</th>
+                <th style={th}>Date résil.</th>
                 <th style={th}>Type résil.</th>
-                <th style={th}>Statut</th>
-                <th style={th}>Date envoi</th>
-                <th style={th}>Date AR</th>
                 <th style={th}>Dépôt</th>
                 <th style={th}>AR</th>
               </tr>
             </thead>
             <tbody>
               {visible.map((r) => {
-                const sCol = statutColor(r.statut_demande)
                 const cCol =
                   COMMERCIAL_COLORS[r.commercial_prenom ?? ''] ?? '#94a3b8'
                 return (
@@ -206,43 +222,50 @@ function ResiliationsV2() {
                     <td style={{ ...td, color: '#475569' }}>
                       {r.compagnie_assureur ?? '—'}
                     </td>
+                    <td style={{ ...td, fontWeight: 600 }}>
+                      {fmtEur(r.cotisation_mensuelle)}
+                    </td>
+                    <td style={td}>{statutBadge(r.statut_perflead)}</td>
+                    <td style={{ ...td, color: '#94a3b8' }}>
+                      {fmtDate(r.date_resiliation_perflead)}
+                    </td>
                     <td style={{ ...td, color: '#475569' }}>
                       {r.type_resiliation ?? '—'}
                     </td>
                     <td style={td}>
-                      {r.statut_demande ? (
-                        <span
+                      {r.resil_url_depot ? (
+                        <a
+                          href={r.resil_url_depot}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Preuve de dépôt"
                           style={{
-                            background: `${sCol}18`,
-                            color: sCol,
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 600,
+                            color: '#2563eb',
+                            textDecoration: 'none',
+                            fontSize: 14,
                           }}
                         >
-                          {r.statut_demande}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>
-                      {r.date_envoi ? fmtDate(r.date_envoi) : '—'}
-                    </td>
-                    <td style={{ ...td, color: r.date_ar ? '#1D9E75' : '#94a3b8' }}>
-                      {r.date_ar ? `✓ ${fmtDate(r.date_ar)}` : '—'}
-                    </td>
-                    <td style={td}>
-                      {r.url_doc_depot ? (
-                        <a href={r.url_doc_depot} target="_blank" rel="noopener noreferrer" title="Preuve de dépôt" style={{ color: '#2563eb', textDecoration: 'none', fontSize: 14 }}>📄</a>
+                          📄
+                        </a>
                       ) : (
                         <span style={{ color: '#cbd5e1' }}>—</span>
                       )}
                     </td>
                     <td style={td}>
-                      {r.url_doc_ar ? (
-                        <a href={r.url_doc_ar} target="_blank" rel="noopener noreferrer" title="Accusé de réception" style={{ color: '#2563eb', textDecoration: 'none', fontSize: 14 }}>📄</a>
+                      {r.resil_url_ar ? (
+                        <a
+                          href={r.resil_url_ar}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Accusé de réception"
+                          style={{
+                            color: '#2563eb',
+                            textDecoration: 'none',
+                            fontSize: 14,
+                          }}
+                        >
+                          📄
+                        </a>
                       ) : (
                         <span style={{ color: '#cbd5e1' }}>—</span>
                       )}

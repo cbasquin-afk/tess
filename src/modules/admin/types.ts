@@ -101,14 +101,18 @@ export interface ResiliationV2Row {
   client: string
   commercial_prenom: string | null
   compagnie_assureur: string | null
+  cotisation_mensuelle: number | null
+  type_commission: string | null
   date_signature: string | null
+  date_effet: string | null
+  statut_perflead: string | null
+  date_resiliation_perflead: string | null
   type_resiliation: string | null
-  date_resiliation: string | null
-  statut_demande: string | null
-  date_envoi: string | null
-  date_ar: string | null
-  url_doc_depot: string | null
-  url_doc_ar: string | null
+  resil_statut: string | null
+  resil_date_envoi: string | null
+  resil_date_ar: string | null
+  resil_url_depot: string | null
+  resil_url_ar: string | null
 }
 
 // ── Badges (RPC tadmin_get_badges) ───────────────────────────
