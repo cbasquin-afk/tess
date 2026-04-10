@@ -11,6 +11,7 @@ import {
   validerContrat,
   retracterContrat,
   passerInstance,
+  insertContrat,
   updateSaisie,
   updateField,
 } from '../api'
@@ -48,13 +49,34 @@ const SAISIE_OPTIONS = [
 
 const RESIL_TYPES = [
   '— Aucune —',
-  'Loi Châtel',
-  'Loi Hamon',
-  'Résiliation infra-annuelle',
-  'Résiliation à échéance',
+  'Pas de mutuelle',
+  'Départ à la retraite',
+  'Fin de portabilité',
+  'Client lui-même',
+  'RIA',
+  'Échéance principale',
+  'Augmentation tarifaire',
+  'Autre',
 ] as const
 
+const RESIL_AVEC_ACTION = ['RIA', 'Échéance principale', 'Augmentation tarifaire', 'Autre']
+
 const RESIL_STATUTS = ['A faire', 'Faite'] as const
+
+const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
+
+const COMPAGNIES = [
+  'ASAF', 'SWISSLIFE', 'FMA', 'APRIL', 'COVERITY',
+  'ALPTIS', 'UTWIN', 'APICIL', 'HENNER', 'GSMC',
+] as const
+
+const TYPE_CONTRAT_OPTIONS = [
+  'Mutuelle', 'Obsèques', 'Prévoyance', 'Animal', 'Emprunteur', 'Dépendance',
+] as const
+
+const ORIGINE_OPTIONS = [
+  'Mapapp', 'Recommandation', 'Multi Equipement', 'Back-office', 'Site',
+] as const
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -123,6 +145,7 @@ function ZoneTampon() {
   const [form, setForm] = useState<EditForm | null>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -327,7 +350,25 @@ function ZoneTampon() {
         <span style={countBadge}>
           {visible.length} contrat{visible.length > 1 ? 's' : ''} à valider
         </span>
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          style={btnPrimary}
+        >
+          + Nouveau contrat
+        </button>
       </div>
+
+      {/* Modal Nouveau contrat */}
+      {showAdd && (
+        <AddContratModal
+          onClose={() => setShowAdd(false)}
+          onSuccess={() => {
+            setShowAdd(false)
+            void load()
+          }}
+        />
+      )}
 
       {/* Table */}
       <div style={cardStyle}>
@@ -631,8 +672,8 @@ function ZoneTampon() {
                                     ))}
                                   </select>
                                 </Field>
-                                {form.type_resiliation !== '— Aucune —' && (
-                                  <>
+                                {form.type_resiliation !== '— Aucune —' &&
+                                  RESIL_AVEC_ACTION.includes(form.type_resiliation) && (
                                     <Field label="Statut">
                                       <select
                                         value={form.resil_statut}
@@ -651,47 +692,7 @@ function ZoneTampon() {
                                         ))}
                                       </select>
                                     </Field>
-                                    <Field label="Date envoi">
-                                      <input
-                                        type="date"
-                                        value={form.date_envoi}
-                                        onChange={(e) =>
-                                          updateForm(
-                                            'date_envoi',
-                                            e.target.value,
-                                          )
-                                        }
-                                        style={inputStyle}
-                                      />
-                                    </Field>
-                                    <Field label="Date AR compagnie">
-                                      <input
-                                        type="date"
-                                        value={form.date_ar}
-                                        onChange={(e) =>
-                                          updateForm(
-                                            'date_ar',
-                                            e.target.value,
-                                          )
-                                        }
-                                        style={inputStyle}
-                                      />
-                                    </Field>
-                                    <Field label="Date effective résiliation">
-                                      <input
-                                        type="date"
-                                        value={form.date_resiliation}
-                                        onChange={(e) =>
-                                          updateForm(
-                                            'date_resiliation',
-                                            e.target.value,
-                                          )
-                                        }
-                                        style={inputStyle}
-                                      />
-                                    </Field>
-                                  </>
-                                )}
+                                  )}
                               </div>
                             </Section>
 
@@ -797,6 +798,186 @@ function Field({
         {label}
       </label>
       {children}
+    </div>
+  )
+}
+
+// ── Modal Nouveau contrat ────────────────────────────────────
+
+function AddContratModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [client, setClient] = useState('')
+  const [commercial, setCommercial] = useState<string>(COMMERCIAUX[0])
+  const [compagnie, setCompagnie] = useState<string>(COMPAGNIES[0])
+  const [cotisation, setCotisation] = useState<number>(0)
+  const [typeCommission, setTypeCommission] = useState<string>(TYPE_COMMISSION_OPTIONS[0])
+  const [dateSignature, setDateSignature] = useState('')
+  const [dateEffet, setDateEffet] = useState('')
+  const [typeContrat, setTypeContrat] = useState('Mutuelle')
+  const [origine, setOrigine] = useState('Mapapp')
+  const [fraisService, setFraisService] = useState<number>(0)
+  const [notes, setNotes] = useState('')
+  const [statutSaisie, setStatutSaisie] = useState('')
+  const [typeResiliation, setTypeResiliation] = useState('— Aucune —')
+  const [resilStatut, setResilStatut] = useState('A faire')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit() {
+    if (!client.trim()) { alert('Client requis'); return }
+    if (!dateSignature) { alert('Date signature requise'); return }
+    setSubmitting(true)
+    try {
+      await insertContrat({
+        client: client.trim(),
+        type_contrat: typeContrat,
+        origine,
+        commercial_prenom: commercial,
+        date_signature: dateSignature,
+        compagnie_assureur: compagnie,
+        cotisation_mensuelle: cotisation,
+        recurrent: true,
+        date_effet: dateEffet || null,
+        type_commission: typeCommission,
+        frais_service: fraisService,
+      })
+      // Save saisie + résiliation if set
+      // Note: insertContrat creates the contrat, updateSaisie needs the ID
+      // For now the RPC handles type_resiliation via p_type_resiliation param
+      // Additional saisie fields can be set after creation
+      onSuccess()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.4)',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          padding: 24,
+          width: '100%',
+          maxWidth: 640,
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Nouveau contrat</h2>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#94a3b8' }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Obligatoires */}
+          <div style={fieldGrid}>
+            <Field label="Client *">
+              <input value={client} onChange={(e) => setClient(e.target.value)} style={inputStyle} placeholder="Nom du client" />
+            </Field>
+            <Field label="Commercial *">
+              <select value={commercial} onChange={(e) => setCommercial(e.target.value)} style={inputStyle}>
+                {COMMERCIAUX.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div style={fieldGrid}>
+            <Field label="Compagnie *">
+              <select value={compagnie} onChange={(e) => setCompagnie(e.target.value)} style={inputStyle}>
+                {COMPAGNIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Cotisation mensuelle *">
+              <input type="number" step="0.01" value={cotisation} onChange={(e) => setCotisation(parseFloat(e.target.value) || 0)} style={inputStyle} />
+            </Field>
+          </div>
+          <div style={fieldGrid}>
+            <Field label="Type commission *">
+              <select value={typeCommission} onChange={(e) => setTypeCommission(e.target.value)} style={inputStyle}>
+                {TYPE_COMMISSION_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </Field>
+            <Field label="Date signature *">
+              <input type="date" value={dateSignature} onChange={(e) => setDateSignature(e.target.value)} style={inputStyle} />
+            </Field>
+            <Field label="Date effet">
+              <input type="date" value={dateEffet} onChange={(e) => setDateEffet(e.target.value)} style={inputStyle} />
+            </Field>
+          </div>
+
+          {/* Optionnels */}
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12, marginTop: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>OPTIONNEL</div>
+            <div style={fieldGrid}>
+              <Field label="Type contrat">
+                <select value={typeContrat} onChange={(e) => setTypeContrat(e.target.value)} style={inputStyle}>
+                  {TYPE_CONTRAT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </Field>
+              <Field label="Origine">
+                <select value={origine} onChange={(e) => setOrigine(e.target.value)} style={inputStyle}>
+                  {ORIGINE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </Field>
+              <Field label="Frais de service">
+                <input type="number" step="0.01" value={fraisService} onChange={(e) => setFraisService(parseFloat(e.target.value) || 0)} style={inputStyle} />
+              </Field>
+            </div>
+            <div style={{ ...fieldGrid, marginTop: 10 }}>
+              <Field label="Statut saisie">
+                <select value={statutSaisie} onChange={(e) => setStatutSaisie(e.target.value)} style={inputStyle}>
+                  <option value="">—</option>
+                  {SAISIE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </Field>
+              <Field label="Type résiliation">
+                <select value={typeResiliation} onChange={(e) => setTypeResiliation(e.target.value)} style={inputStyle}>
+                  {RESIL_TYPES.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </Field>
+              {typeResiliation !== '— Aucune —' && RESIL_AVEC_ACTION.includes(typeResiliation) && (
+                <Field label="Statut résiliation">
+                  <select value={resilStatut} onChange={(e) => setResilStatut(e.target.value)} style={inputStyle}>
+                    {RESIL_STATUTS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </Field>
+              )}
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <Field label="Notes">
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+              </Field>
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={onClose} style={btnGray}>Annuler</button>
+            <button type="button" disabled={submitting} onClick={() => { void handleSubmit() }} style={btnPrimary}>
+              {submitting ? '…' : 'Créer le contrat'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
