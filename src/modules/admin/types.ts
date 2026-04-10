@@ -107,6 +107,8 @@ export interface ResiliationV2Row {
   statut_demande: string | null
   date_envoi: string | null
   date_ar: string | null
+  url_doc_depot: string | null
+  url_doc_ar: string | null
 }
 
 // ── Badges (RPC tadmin_get_badges) ───────────────────────────

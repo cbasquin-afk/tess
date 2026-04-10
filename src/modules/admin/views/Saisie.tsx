@@ -10,12 +10,11 @@ import { ClientCell } from '../components/ClientCell'
 import type { TadminContrat } from '../types'
 
 const SAISIE_INLINE_OPTIONS: readonly InlineSelectOption[] = [
-  { value: 'A scanner', label: 'A scanner', color: '#888780' },
-  { value: 'Téléversée', label: 'Téléversée', color: '#378ADD' },
+  { value: 'Scanné', label: 'Scanné', color: '#888780' },
+  { value: 'Téléversé', label: 'Téléversé', color: '#378ADD' },
+  { value: 'Mail à la Cie', label: 'Mail à la Cie', color: '#BA7517' },
   { value: 'Extranet', label: 'Extranet', color: '#534AB7' },
-  { value: 'Instance', label: 'Instance', color: '#E24B4A' },
-  { value: 'Mail cie', label: 'Mail cie', color: '#BA7517' },
-  { value: 'Saisie', label: 'Saisie', color: '#1D9E75' },
+  { value: 'Manuscrit OK', label: 'Manuscrit OK', color: '#1D9E75' },
 ]
 
 const STATUT_CIE_INLINE_OPTIONS: readonly InlineSelectOption[] = [

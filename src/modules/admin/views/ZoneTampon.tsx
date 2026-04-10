@@ -40,11 +40,20 @@ const TYPE_COMMISSION_OPTIONS = [
 const STATUT_CIE_OPTIONS = ['En attente', 'Validé', 'Instance'] as const
 
 const SAISIE_OPTIONS = [
-  'A scanner',
-  'Téléversée',
+  'Scanné',
+  'Téléversé',
+  'Mail à la Cie',
   'Extranet',
-  'Mail cie',
-  'Saisie',
+  'Manuscrit OK',
+] as const
+
+const MOTIFS_INSTANCE = [
+  'Manque justificatif identité',
+  'Justificatif identité périmé',
+  'Manque justificatif TNS',
+  'Manque attestation MSA',
+  'Manque IBAN',
+  'Autre',
 ] as const
 
 const RESIL_TYPES = [
@@ -146,6 +155,7 @@ function ZoneTampon() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [instanceModal, setInstanceModal] = useState<{ id: string; client: string } | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -268,13 +278,18 @@ function ZoneTampon() {
     }
   }
 
-  async function handleInstance(id: string) {
-    const motif = window.prompt("Motif de l'instance (optionnel) :")
-    if (motif === null) return
-    setBusy(id)
+  function handleInstanceClick(id: string, client: string) {
     setMenuOpen(null)
+    setInstanceModal({ id, client })
+  }
+
+  async function handleInstanceConfirm(motifs: string[], motifAutre: string) {
+    if (!instanceModal) return
+    setBusy(instanceModal.id)
     try {
-      await passerInstance(id, motif || undefined)
+      const motifStr = motifs.join(', ') + (motifAutre ? ` — ${motifAutre}` : '')
+      await passerInstance(instanceModal.id, motifStr)
+      setInstanceModal(null)
       setExpandedId(null)
       setForm(null)
       await load()
@@ -358,6 +373,15 @@ function ZoneTampon() {
           + Nouveau contrat
         </button>
       </div>
+
+      {/* Modal Instance */}
+      {instanceModal && (
+        <InstanceModal
+          client={instanceModal.client}
+          onConfirm={(motifs, motifAutre) => { void handleInstanceConfirm(motifs, motifAutre) }}
+          onClose={() => setInstanceModal(null)}
+        />
+      )}
 
       {/* Modal Nouveau contrat */}
       {showAdd && (
@@ -519,7 +543,7 @@ function ZoneTampon() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    void handleInstance(r.id)
+                                    handleInstanceClick(r.id, r.client)
                                   }}
                                   style={{
                                     ...menuItem,
@@ -711,25 +735,36 @@ function ZoneTampon() {
                             </div>
 
                             {/* Workflow actions */}
-                            <div
-                              style={{
-                                display: 'flex',
-                                gap: 8,
-                                borderTop: '1px solid #e5e7eb',
-                                paddingTop: 12,
-                                marginTop: 4,
-                              }}
-                            >
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => {
-                                  void handleValider(r.id)
-                                }}
-                                style={btnGreen}
-                              >
-                                ✓ Valider le contrat
-                              </button>
+                            {(() => {
+                              const manquants: string[] = []
+                              if (!r.compagnie_assureur) manquants.push('Compagnie')
+                              if (!r.cotisation_mensuelle) manquants.push('Cotisation')
+                              if (!r.type_commission && !form.type_commission) manquants.push('Type commission')
+                              if (!r.date_signature && !form.date_signature) manquants.push('Date signature')
+                              if (!r.date_effet && !form.date_effet) manquants.push('Date effet')
+                              if (!form.statut_saisie) manquants.push('Statut saisie')
+                              const ok = manquants.length === 0
+                              return (
+                                <>
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      gap: 8,
+                                      borderTop: '1px solid #e5e7eb',
+                                      paddingTop: 12,
+                                      marginTop: 4,
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      disabled={isBusy || !ok}
+                                      onClick={ok ? () => { void handleValider(r.id) } : undefined}
+                                      title={ok ? 'Valider et basculer dans Contrats' : `Champs manquants : ${manquants.join(', ')}`}
+                                      style={{ ...btnGreen, opacity: ok ? 1 : 0.4, cursor: ok ? 'pointer' : 'not-allowed' }}
+                                    >
+                                      ✓ Valider le contrat
+                                    </button>
                               <button
                                 type="button"
                                 disabled={isBusy}
@@ -744,13 +779,21 @@ function ZoneTampon() {
                                 type="button"
                                 disabled={isBusy}
                                 onClick={() => {
-                                  void handleInstance(r.id)
+                                  handleInstanceClick(r.id, r.client)
                                 }}
                                 style={btnRed}
                               >
                                 ⚠ Instance
                               </button>
-                            </div>
+                                  </div>
+                                  {!ok && (
+                                    <p style={{ color: '#ef4444', fontSize: 12, marginTop: 6, marginBottom: 0 }}>
+                                      ⚠ Champs manquants avant validation : {manquants.join(' · ')}
+                                    </p>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </div>
                         </td>
                       </tr>
@@ -798,6 +841,145 @@ function Field({
         {label}
       </label>
       {children}
+    </div>
+  )
+}
+
+// ── Modal Instance ───────────────────────────────────────────
+
+function InstanceModal({
+  client,
+  onConfirm,
+  onClose,
+}: {
+  client: string
+  onConfirm: (motifs: string[], motifAutre: string) => void
+  onClose: () => void
+}) {
+  const [selected, setSelected] = useState<string[]>([])
+  const [autreText, setAutreText] = useState('')
+
+  const toggle = (motif: string) => {
+    setSelected((prev) =>
+      prev.includes(motif) ? prev.filter((m) => m !== motif) : [...prev, motif],
+    )
+  }
+
+  const canConfirm =
+    selected.length > 0 &&
+    (!selected.includes('Autre') || autreText.trim().length > 0)
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          padding: 28,
+          width: 480,
+          maxWidth: '90vw',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ margin: '0 0 6px' }}>⚠ Passer en Instance</h3>
+        <p style={{ color: '#64748b', fontSize: 14, marginBottom: 20, marginTop: 0 }}>
+          {client} — Sélectionner le ou les motifs
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {MOTIFS_INSTANCE.map((motif) => (
+            <label
+              key={motif}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+                fontSize: 14,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(motif)}
+                onChange={() => toggle(motif)}
+                style={{ width: 16, height: 16, accentColor: '#f97316' }}
+              />
+              {motif}
+            </label>
+          ))}
+        </div>
+
+        {selected.includes('Autre') && (
+          <input
+            type="text"
+            placeholder="Préciser le motif..."
+            value={autreText}
+            onChange={(e) => setAutreText(e.target.value)}
+            style={{
+              marginTop: 12,
+              width: '100%',
+              padding: '8px 12px',
+              border: '1px solid #e2e8f0',
+              borderRadius: 6,
+              fontSize: 14,
+              boxSizing: 'border-box',
+            }}
+          />
+        )}
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            justifyContent: 'flex-end',
+            marginTop: 24,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: '1px solid #e2e8f0',
+              background: '#fff',
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(selected, autreText)}
+            disabled={!canConfirm}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              background: canConfirm ? '#f97316' : '#fed7aa',
+              color: '#fff',
+              border: 'none',
+              cursor: canConfirm ? 'pointer' : 'not-allowed',
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+          >
+            Confirmer l&apos;instance
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

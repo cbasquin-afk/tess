@@ -86,7 +86,7 @@ function ResiliationsV2() {
       <div>
         <h1 style={{ margin: 0, fontSize: 24 }}>Résiliations</h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Contrats résiliés — suivi des demandes de résiliation
+          Résiliations ancienne mutuelle en cours — lettres et accusés de réception
         </p>
       </div>
 
@@ -164,11 +164,11 @@ function ResiliationsV2() {
                 <th style={th}>Client</th>
                 <th style={th}>Commercial</th>
                 <th style={th}>Compagnie</th>
-                <th style={th}>Date sig.</th>
                 <th style={th}>Type résil.</th>
-                <th style={th}>Date résil.</th>
                 <th style={th}>Statut</th>
-                <th style={th}>Lettre</th>
+                <th style={th}>Date envoi</th>
+                <th style={th}>Date AR</th>
+                <th style={th}>Dépôt</th>
                 <th style={th}>AR</th>
               </tr>
             </thead>
@@ -206,14 +206,8 @@ function ResiliationsV2() {
                     <td style={{ ...td, color: '#475569' }}>
                       {r.compagnie_assureur ?? '—'}
                     </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>
-                      {fmtDate(r.date_signature)}
-                    </td>
                     <td style={{ ...td, color: '#475569' }}>
                       {r.type_resiliation ?? '—'}
-                    </td>
-                    <td style={{ ...td, color: '#475569' }}>
-                      {fmtDate(r.date_resiliation)}
                     </td>
                     <td style={td}>
                       {r.statut_demande ? (
@@ -237,7 +231,21 @@ function ResiliationsV2() {
                       {r.date_envoi ? fmtDate(r.date_envoi) : '—'}
                     </td>
                     <td style={{ ...td, color: r.date_ar ? '#1D9E75' : '#94a3b8' }}>
-                      {r.date_ar ? `\u2713 ${fmtDate(r.date_ar)}` : '—'}
+                      {r.date_ar ? `✓ ${fmtDate(r.date_ar)}` : '—'}
+                    </td>
+                    <td style={td}>
+                      {r.url_doc_depot ? (
+                        <a href={r.url_doc_depot} target="_blank" rel="noopener noreferrer" title="Preuve de dépôt" style={{ color: '#2563eb', textDecoration: 'none', fontSize: 14 }}>📄</a>
+                      ) : (
+                        <span style={{ color: '#cbd5e1' }}>—</span>
+                      )}
+                    </td>
+                    <td style={td}>
+                      {r.url_doc_ar ? (
+                        <a href={r.url_doc_ar} target="_blank" rel="noopener noreferrer" title="Accusé de réception" style={{ color: '#2563eb', textDecoration: 'none', fontSize: 14 }}>📄</a>
+                      ) : (
+                        <span style={{ color: '#cbd5e1' }}>—</span>
+                      )}
                     </td>
                   </tr>
                 )
