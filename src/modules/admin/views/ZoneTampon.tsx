@@ -234,11 +234,21 @@ function ZoneTampon() {
         date_ar: form.date_ar || null,
       })
 
-      setToast('Enregistré')
-      await load()
-      // Re-populate form with fresh data
-      const fresh = rows.find((r) => r.id === id)
-      if (fresh) setForm(buildForm(fresh))
+      // Mise à jour locale sans refetch — évite de reset le formulaire
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                type_commission: form.type_commission || r.type_commission,
+                date_signature: form.date_signature || r.date_signature,
+                date_effet: form.date_effet || r.date_effet,
+                statut_compagnie: form.statut_compagnie || r.statut_compagnie,
+              }
+            : r,
+        ),
+      )
+      setToast('Enregistré ✓')
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Erreur')
     } finally {
