@@ -1,10 +1,14 @@
 import { supabase } from '@/shared/supabase'
 import type {
+  AdminBadges,
+  AdminRetractationRow,
+  ResiliationV2Row,
   TadminAsafCloture,
   TadminCommission,
   TadminContrat,
   TadminInstance,
   TadminKpis,
+  ZoneTamponRow,
 } from './types'
 
 // ── Lectures via vues publiques ───────────────────────────────
@@ -188,6 +192,78 @@ export async function updateField(
     p_value: value,
   })
   if (error) throw new Error(`tadmin_update_field: ${error.message}`)
+}
+
+// ── Zone Tampon / Rétractations / Résiliations ──────────────
+export async function fetchZoneTampon(): Promise<ZoneTamponRow[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_zone_tampon')
+    .select('*')
+    .order('date_signature', { ascending: false })
+  if (error) throw new Error(`tadmin_v_zone_tampon: ${error.message}`)
+  return (data ?? []) as ZoneTamponRow[]
+}
+
+export async function fetchAdminRetractations(): Promise<AdminRetractationRow[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_retractations')
+    .select('*')
+    .order('date_signature', { ascending: false })
+  if (error) throw new Error(`tadmin_v_retractations: ${error.message}`)
+  return (data ?? []) as AdminRetractationRow[]
+}
+
+export async function fetchResiliationsV2(): Promise<ResiliationV2Row[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_resiliations_v2')
+    .select('*')
+    .order('date_resiliation', { ascending: false })
+  if (error) throw new Error(`tadmin_v_resiliations_v2: ${error.message}`)
+  return (data ?? []) as ResiliationV2Row[]
+}
+
+// ── Badges (zone tampon + instances) ─────────────────────────
+export async function getBadges(): Promise<AdminBadges> {
+  const { data, error } = await supabase.rpc('tadmin_get_badges')
+  if (error) throw new Error(`tadmin_get_badges: ${error.message}`)
+  return data as AdminBadges
+}
+
+// ── Workflow RPCs ────────────────────────────────────────────
+export async function validerContrat(id: string): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_valider_contrat', { p_contrat_id: id })
+  if (error) throw new Error(`tadmin_valider_contrat: ${error.message}`)
+}
+
+export async function retracterContrat(id: string): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_retracter_contrat', { p_contrat_id: id })
+  if (error) throw new Error(`tadmin_retracter_contrat: ${error.message}`)
+}
+
+export async function passerInstance(id: string, motif?: string): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_passer_instance', {
+    p_contrat_id: id,
+    p_motif: motif ?? null,
+  })
+  if (error) throw new Error(`tadmin_passer_instance: ${error.message}`)
+}
+
+export async function leverInstance(id: string): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_lever_instance', { p_contrat_id: id })
+  if (error) throw new Error(`tadmin_lever_instance: ${error.message}`)
+}
+
+export async function resilierContrat(
+  id: string,
+  type?: string,
+  date?: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_resilier_contrat', {
+    p_contrat_id: id,
+    p_type_resiliation: type ?? null,
+    p_date_resiliation: date ?? null,
+  })
+  if (error) throw new Error(`tadmin_resilier_contrat: ${error.message}`)
 }
 
 export async function updateSaisie(p: UpdateSaisieParams): Promise<void> {

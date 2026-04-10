@@ -10,10 +10,13 @@ import {
   deleteContrat,
   fetchCommissions,
   insertContrat,
+  updateSaisie,
+  passerInstance,
+  resilierContrat,
   type InsertContratParams,
+  type UpdateSaisieParams,
 } from '../api'
 import type { TadminCommission, TadminContrat } from '../types'
-import { ModalSaisie } from '../components/ModalSaisie'
 import { ClientCell } from '../components/ClientCell'
 
 // ── Constantes UI ─────────────────────────────────────────────
@@ -34,15 +37,7 @@ const STATUT_COLORS: Record<string, string> = {
   Résilié: '#888780',
 }
 
-const ORIGINE_COLORS: Record<string, { bg: string; fg: string }> = {
-  Mapapp: { bg: '#dbeafe', fg: '#1e40af' },
-  Site: { bg: '#ede9fe', fg: '#5b21b6' },
-  Recommandation: { bg: '#dcfce7', fg: '#15803d' },
-  'Multi Equipement': { bg: '#fef3c7', fg: '#92400e' },
-  'Back-office': { bg: '#f3f4f6', fg: '#374151' },
-}
-
-// Options du modal Add — fidèles au natif (pas la liste de la spec)
+// Options du modal Add
 const TYPE_CONTRAT_OPTIONS = [
   'Mutuelle',
   'Prévoyance',
@@ -53,6 +48,30 @@ const TYPE_CONTRAT_OPTIONS = [
 ] as const
 
 const ORIGINE_OPTIONS = ['Mapapp', 'Multi Equipement', 'Recommandation', 'Site'] as const
+
+const STATUT_COMPAGNIE_OPTIONS = [
+  'En attente',
+  'Validé',
+  'Instance',
+  'Rétracté',
+  'Résilié',
+] as const
+
+const STATUT_SAISIE_OPTIONS = [
+  'A scanner',
+  'Téléversée',
+  'Extranet',
+  'Instance',
+  'Mail cie',
+] as const
+
+const TYPE_RESILIATION_OPTIONS = [
+  '',
+  'Infra-annuelle',
+  'Loi Hamon',
+  'Loi Chatel',
+  'Résiliation échéance',
+] as const
 
 type FilterPill =
   | 'all'
@@ -130,6 +149,27 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+// ── Drill-down edit form state ───────────────────────────────
+interface EditFormState {
+  statut_compagnie: string
+  statut_saisie: string
+  type_resiliation: string
+  date_resiliation: string
+  date_envoi: string
+  date_ar: string
+}
+
+function buildEditForm(c: TadminContrat): EditFormState {
+  return {
+    statut_compagnie: c.statut_compagnie ?? 'En attente',
+    statut_saisie: c.statut_saisie ?? '',
+    type_resiliation: c.type_resiliation ?? '',
+    date_resiliation: c.date_resiliation ?? '',
+    date_envoi: c.resil_date_envoi ?? '',
+    date_ar: c.resil_date_ar ?? '',
+  }
+}
+
 // ── Composant principal ──────────────────────────────────────
 function Contrats() {
   const { contrats, loading, error, reload } = useAdminContrats()
@@ -141,8 +181,13 @@ function Contrats() {
 
   const [addOpen, setAddOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<TadminContrat | null>(null)
-  const [detailTarget, setDetailTarget] = useState<TadminContrat | null>(null)
-  const [saisieTarget, setSaisieTarget] = useState<TadminContrat | null>(null)
+  const [panelTarget, setPanelTarget] = useState<TadminContrat | null>(null)
+
+  // Drill-down state
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<EditFormState | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [drillError, setDrillError] = useState<string | null>(null)
 
   // Tri client-side
   const sorted = useMemo<TadminContrat[]>(() => {
@@ -190,8 +235,85 @@ function Contrats() {
     }
   }
 
+  function toggleExpand(c: TadminContrat) {
+    if (expandedId === c.id) {
+      setExpandedId(null)
+      setEditForm(null)
+      setDrillError(null)
+    } else {
+      setExpandedId(c.id)
+      setEditForm(buildEditForm(c))
+      setDrillError(null)
+    }
+  }
+
+  function updateEditField<K extends keyof EditFormState>(k: K, v: EditFormState[K]) {
+    setEditForm((prev) => (prev ? { ...prev, [k]: v } : prev))
+  }
+
+  async function handleSave(contratId: string) {
+    if (!editForm) return
+    setSaving(true)
+    setDrillError(null)
+    try {
+      const params: UpdateSaisieParams = {
+        contrat_id: contratId,
+        statut_compagnie: editForm.statut_compagnie || null,
+        statut_saisie: editForm.statut_saisie || null,
+        type_resiliation: editForm.type_resiliation || null,
+        resil_statut: null,
+        date_resiliation: editForm.date_resiliation || null,
+        date_envoi: editForm.date_envoi || null,
+        date_ar: editForm.date_ar || null,
+      }
+      await updateSaisie(params)
+      setExpandedId(null)
+      setEditForm(null)
+      void reload()
+    } catch (e: unknown) {
+      setDrillError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handlePasserInstance(contratId: string) {
+    setSaving(true)
+    setDrillError(null)
+    try {
+      await passerInstance(contratId)
+      setExpandedId(null)
+      setEditForm(null)
+      void reload()
+    } catch (e: unknown) {
+      setDrillError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleResilier(contratId: string) {
+    if (!editForm) return
+    setSaving(true)
+    setDrillError(null)
+    try {
+      await resilierContrat(
+        contratId,
+        editForm.type_resiliation || undefined,
+        editForm.date_resiliation || undefined,
+      )
+      setExpandedId(null)
+      setEditForm(null)
+      void reload()
+    } catch (e: unknown) {
+      setDrillError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading)
-    return <div style={{ color: '#64748b' }}>Chargement…</div>
+    return <div style={{ color: '#64748b' }}>Chargement...</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
 
   return (
@@ -268,7 +390,7 @@ function Contrats() {
           onChange={(e: ChangeEvent<HTMLInputElement>) =>
             setSearch(e.target.value)
           }
-          placeholder="Rechercher…"
+          placeholder="Rechercher..."
           style={{ ...inputStyle, flex: 1, maxWidth: 240 }}
         />
 
@@ -329,14 +451,6 @@ function Contrats() {
                   onToggle={toggleSort}
                 />
                 <SortableTh
-                  k="compagnie_assureur"
-                  label="Compagnie"
-                  sortKey={sortKey}
-                  sortDir={sortDir}
-                  onToggle={toggleSort}
-                />
-                <th style={th}>Origine</th>
-                <SortableTh
                   k="commercial_prenom"
                   label="Commercial"
                   sortKey={sortKey}
@@ -344,8 +458,24 @@ function Contrats() {
                   onToggle={toggleSort}
                 />
                 <SortableTh
+                  k="compagnie_assureur"
+                  label="Compagnie"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggleSort}
+                />
+                <SortableTh
+                  k="cotisation_mensuelle"
+                  label="Cotis./mois"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggleSort}
+                  right
+                />
+                <th style={th}>Type com.</th>
+                <SortableTh
                   k="date_signature"
-                  label="Date sign."
+                  label="Date sig."
                   sortKey={sortKey}
                   sortDir={sortDir}
                   onToggle={toggleSort}
@@ -357,26 +487,8 @@ function Contrats() {
                   sortDir={sortDir}
                   onToggle={toggleSort}
                 />
-                <SortableTh
-                  k="cotisation_mensuelle"
-                  label="Cotisation"
-                  sortKey={sortKey}
-                  sortDir={sortDir}
-                  onToggle={toggleSort}
-                  right
-                />
-                <th style={th}>Type com.</th>
-                <th style={{ ...th, textAlign: 'center' }}>R/NR</th>
-                <SortableTh
-                  k="commission_generee"
-                  label="Com. générée"
-                  sortKey={sortKey}
-                  sortDir={sortDir}
-                  onToggle={toggleSort}
-                  right
-                />
-                <th style={{ ...th, textAlign: 'right' }}>Statut</th>
-                <th style={{ ...th, textAlign: 'right' }}>Actions</th>
+                <th style={{ ...th, textAlign: 'center' }}>Statut cie</th>
+                <th style={th}>Saisie</th>
               </tr>
             </thead>
             <tbody>
@@ -387,144 +499,243 @@ function Contrats() {
                 const statutCol = c.statut_compagnie
                   ? STATUT_COLORS[c.statut_compagnie] ?? '#888780'
                   : '#888780'
+                const isExpanded = expandedId === c.id
+
                 return (
-                  <tr
-                    key={c.id}
-                    onClick={() => setDetailTarget(c)}
-                    style={{
-                      borderTop: '1px solid #f1f5f9',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <td style={td}>
-                      <ClientCell name={c.client} />
-                    </td>
-                    <td style={{ ...td, color: '#475569' }}>
-                      {c.compagnie_assureur ?? '—'}
-                    </td>
-                    <td style={td}>
-                      <OrigineBadge origine={c.origine} />
-                    </td>
-                    <td
+                  <RowGroup key={c.id}>
+                    <tr
+                      onClick={() => toggleExpand(c)}
                       style={{
-                        ...td,
-                        color: commCol,
-                        fontWeight: 600,
+                        borderTop: '1px solid #f1f5f9',
+                        cursor: 'pointer',
+                        background: isExpanded ? '#f1f5f9' : undefined,
                       }}
                     >
-                      {c.commercial_prenom ?? '—'}
-                    </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>
-                      {fmtDate(c.date_signature)}
-                    </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>
-                      {fmtDate(c.date_effet)}
-                    </td>
-                    <td
-                      style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                        color: '#0f172a',
-                      }}
-                    >
-                      {c.cotisation_mensuelle
-                        ? `${fmtEur(c.cotisation_mensuelle)}/m`
-                        : '—'}
-                    </td>
-                    <td
-                      style={{
-                        ...td,
-                        color: '#94a3b8',
-                        fontSize: 11,
-                      }}
-                    >
-                      {c.type_commission ?? '—'}
-                    </td>
-                    <td style={{ ...td, textAlign: 'center' }}>
-                      {c.recurrent ? (
-                        <span
-                          style={{
-                            background: '#dcfce7',
-                            color: '#15803d',
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 700,
-                          }}
-                        >
-                          R
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            background: '#f3f4f6',
-                            color: '#64748b',
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 700,
-                          }}
-                        >
-                          NR
-                        </span>
-                      )}
-                    </td>
-                    <td
-                      style={{
-                        ...td,
-                        textAlign: 'right',
-                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                        color:
-                          (c.commission_generee ?? 0) > 0
-                            ? '#1D9E75'
-                            : '#94a3b8',
-                        fontWeight: (c.commission_generee ?? 0) > 0 ? 600 : 400,
-                      }}
-                    >
-                      {fmtEur(c.commission_generee)}
-                    </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
-                      {c.statut_compagnie ? (
-                        <span
-                          style={{
-                            background: `${statutCol}18`,
-                            color: statutCol,
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {c.statut_compagnie}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#cbd5e1' }}>—</span>
-                      )}
-                    </td>
-                    <td
-                      style={{ ...td, textAlign: 'right' }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setSaisieTarget(c)}
-                        title="Saisie & résiliation"
-                        style={iconBtn}
+                      <td style={td}>
+                        <ClientCell name={c.client} />
+                      </td>
+                      <td
+                        style={{
+                          ...td,
+                          color: commCol,
+                          fontWeight: 600,
+                        }}
                       >
-                        ✏️
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(c)}
-                        title="Supprimer"
-                        style={{ ...iconBtn, color: '#E24B4A' }}
+                        {c.commercial_prenom ?? '—'}
+                      </td>
+                      <td style={{ ...td, color: '#475569' }}>
+                        {c.compagnie_assureur ?? '—'}
+                      </td>
+                      <td
+                        style={{
+                          ...td,
+                          textAlign: 'right',
+                          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                          color: '#0f172a',
+                        }}
                       >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
+                        {c.cotisation_mensuelle
+                          ? `${fmtEur(c.cotisation_mensuelle)}/m`
+                          : '—'}
+                      </td>
+                      <td
+                        style={{
+                          ...td,
+                          color: '#94a3b8',
+                          fontSize: 11,
+                        }}
+                      >
+                        {c.type_commission ?? '—'}
+                      </td>
+                      <td style={{ ...td, color: '#94a3b8' }}>
+                        {fmtDate(c.date_signature)}
+                      </td>
+                      <td style={{ ...td, color: '#94a3b8' }}>
+                        {fmtDate(c.date_effet)}
+                      </td>
+                      <td style={{ ...td, textAlign: 'center' }}>
+                        {c.statut_compagnie ? (
+                          <span
+                            style={{
+                              background: `${statutCol}18`,
+                              color: statutCol,
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {c.statut_compagnie}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#cbd5e1' }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ ...td, color: '#475569', fontSize: 12 }}>
+                        {c.statut_saisie ?? '—'}
+                      </td>
+                    </tr>
+
+                    {/* Drill-down panel */}
+                    {isExpanded && editForm && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 0, background: '#f8fafc' }}>
+                          <div style={{ borderTop: '1px solid #e2e8f0', padding: '14px 20px' }}>
+                            {/* Editable fields */}
+                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12 }}>
+                              <DrillField label="Statut compagnie">
+                                <select
+                                  value={editForm.statut_compagnie}
+                                  onChange={(e) => updateEditField('statut_compagnie', e.target.value)}
+                                  style={inputStyle}
+                                  disabled={saving}
+                                >
+                                  {STATUT_COMPAGNIE_OPTIONS.map((o) => (
+                                    <option key={o} value={o}>{o}</option>
+                                  ))}
+                                </select>
+                              </DrillField>
+                              <DrillField label="Statut saisie">
+                                <select
+                                  value={editForm.statut_saisie}
+                                  onChange={(e) => updateEditField('statut_saisie', e.target.value)}
+                                  style={inputStyle}
+                                  disabled={saving}
+                                >
+                                  <option value="">—</option>
+                                  {STATUT_SAISIE_OPTIONS.map((o) => (
+                                    <option key={o} value={o}>{o}</option>
+                                  ))}
+                                </select>
+                              </DrillField>
+                              <DrillField label="Type résiliation">
+                                <select
+                                  value={editForm.type_resiliation}
+                                  onChange={(e) => updateEditField('type_resiliation', e.target.value)}
+                                  style={inputStyle}
+                                  disabled={saving}
+                                >
+                                  {TYPE_RESILIATION_OPTIONS.map((o) => (
+                                    <option key={o} value={o}>{o || '— Aucun —'}</option>
+                                  ))}
+                                </select>
+                              </DrillField>
+                            </div>
+                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+                              <DrillField label="Date résiliation">
+                                <input
+                                  type="date"
+                                  value={editForm.date_resiliation}
+                                  onChange={(e) => updateEditField('date_resiliation', e.target.value)}
+                                  style={inputStyle}
+                                  disabled={saving}
+                                />
+                              </DrillField>
+                              <DrillField label="Date envoi lettre">
+                                <input
+                                  type="date"
+                                  value={editForm.date_envoi}
+                                  onChange={(e) => updateEditField('date_envoi', e.target.value)}
+                                  style={inputStyle}
+                                  disabled={saving}
+                                />
+                              </DrillField>
+                              <DrillField label="Date AR">
+                                <input
+                                  type="date"
+                                  value={editForm.date_ar}
+                                  onChange={(e) => updateEditField('date_ar', e.target.value)}
+                                  style={inputStyle}
+                                  disabled={saving}
+                                />
+                              </DrillField>
+                            </div>
+
+                            {drillError && (
+                              <div
+                                style={{
+                                  color: '#dc2626',
+                                  fontSize: 12,
+                                  marginBottom: 10,
+                                  padding: '6px 10px',
+                                  background: '#fef2f2',
+                                  border: '1px solid #fecaca',
+                                  borderRadius: 6,
+                                }}
+                              >
+                                {drillError}
+                              </div>
+                            )}
+
+                            {/* Action buttons */}
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => { void handleSave(c.id) }}
+                                style={btnPrimary}
+                              >
+                                {saving ? '...' : 'Enregistrer'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => { void handlePasserInstance(c.id) }}
+                                style={{
+                                  ...btnSecondary,
+                                  color: '#BA7517',
+                                  borderColor: '#BA7517',
+                                }}
+                              >
+                                Passer en Instance
+                              </button>
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => { void handleResilier(c.id) }}
+                                style={{
+                                  ...btnSecondary,
+                                  color: '#E24B4A',
+                                  borderColor: '#E24B4A',
+                                }}
+                              >
+                                Résilier
+                              </button>
+
+                              <div style={{ flex: 1 }} />
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setPanelTarget(c)
+                                }}
+                                title="Commissions"
+                                style={{
+                                  ...iconBtn,
+                                  fontSize: 16,
+                                }}
+                              >
+                                {'📊'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDeleteTarget(c)
+                                }}
+                                title="Supprimer"
+                                style={{ ...iconBtn, color: '#E24B4A' }}
+                              >
+                                {'✕'}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </RowGroup>
                 )
               })}
             </tbody>
@@ -552,20 +763,10 @@ function Contrats() {
           }}
         />
       )}
-      {detailTarget && (
+      {panelTarget && (
         <PanelDetail
-          contrat={detailTarget}
-          onClose={() => setDetailTarget(null)}
-        />
-      )}
-      {saisieTarget && (
-        <ModalSaisie
-          contrat={saisieTarget}
-          onClose={() => setSaisieTarget(null)}
-          onSuccess={() => {
-            setSaisieTarget(null)
-            void reload()
-          }}
+          contrat={panelTarget}
+          onClose={() => setPanelTarget(null)}
         />
       )}
     </div>
@@ -574,22 +775,29 @@ function Contrats() {
 
 // ── Sub-composants ──────────────────────────────────────────
 
-function OrigineBadge({ origine }: { origine: string | null }) {
-  if (!origine) return <span style={{ color: '#cbd5e1' }}>—</span>
-  const c = ORIGINE_COLORS[origine] ?? { bg: '#f3f4f6', fg: '#374151' }
+/** Fragment wrapper so we can return two <tr> siblings from a map */
+function RowGroup({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
+}
+
+function DrillField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <span
-      style={{
-        background: c.bg,
-        color: c.fg,
-        padding: '2px 8px',
-        borderRadius: 4,
-        fontSize: 11,
-        fontWeight: 600,
-      }}
-    >
-      {origine}
-    </span>
+    <div style={{ minWidth: 160, flex: '1 1 160px' }}>
+      <label
+        style={{
+          display: 'block',
+          fontSize: 10,
+          fontWeight: 600,
+          color: '#64748b',
+          marginBottom: 3,
+          textTransform: 'uppercase',
+          letterSpacing: '.05em',
+        }}
+      >
+        {label}
+      </label>
+      {children}
+    </div>
   )
 }
 
@@ -725,7 +933,7 @@ function ModalAdd({ onClose, onSuccess }: ModalAddProps) {
               onChange={(e) =>
                 update('compagnie_assureur', e.target.value || null)
               }
-              placeholder="ASAF, FMA, COVERITY…"
+              placeholder="ASAF, FMA, COVERITY..."
               style={inputStyle}
             />
           </Field>
@@ -744,7 +952,7 @@ function ModalAdd({ onClose, onSuccess }: ModalAddProps) {
           </Field>
         </FormRow>
         <FormRow>
-          <Field label="Cotisation mensuelle (€)">
+          <Field label="Cotisation mensuelle (EUR)">
             <input
               type="number"
               step="0.01"
@@ -764,7 +972,7 @@ function ModalAdd({ onClose, onSuccess }: ModalAddProps) {
               onChange={(e) =>
                 update('type_commission', e.target.value || null)
               }
-              placeholder="PA 30/10, PS 25/15…"
+              placeholder="PA 30/10, PS 25/15..."
               style={inputStyle}
             />
           </Field>
@@ -790,7 +998,7 @@ function ModalAdd({ onClose, onSuccess }: ModalAddProps) {
           </Field>
         </FormRow>
         <FormRow>
-          <Field label="Frais de service (€)">
+          <Field label="Frais de service (EUR)">
             <input
               type="number"
               step="0.1"
@@ -851,7 +1059,7 @@ function ModalAdd({ onClose, onSuccess }: ModalAddProps) {
             Annuler
           </button>
           <button type="submit" disabled={submitting} style={btnPrimary}>
-            {submitting ? '…' : 'Ajouter'}
+            {submitting ? '...' : 'Ajouter'}
           </button>
         </div>
       </form>
@@ -932,14 +1140,14 @@ function ModalDelete({ target, onClose, onSuccess }: ModalDeleteProps) {
           disabled={submitting}
           style={btnDanger}
         >
-          {submitting ? '…' : 'Supprimer définitivement'}
+          {submitting ? '...' : 'Supprimer définitivement'}
         </button>
       </div>
     </ModalShell>
   )
 }
 
-// ── Panel Détail (panel latéral) ─────────────────────────────
+// ── Panel Détail (panel latéral pour commissions) ────────────
 
 interface PanelDetailProps {
   contrat: TadminContrat
@@ -1041,7 +1249,7 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
               lineHeight: 1,
             }}
           >
-            ✕
+            {'✕'}
           </button>
         </div>
 
@@ -1142,7 +1350,7 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
           </div>
           {loadingCom ? (
             <div style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>
-              Chargement…
+              Chargement...
             </div>
           ) : errCom ? (
             <div style={{ color: '#dc2626', fontSize: 12 }}>

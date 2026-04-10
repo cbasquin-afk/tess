@@ -1,6 +1,6 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useInstances } from '../hooks/useInstances'
-import { resolveInstance } from '../api'
+import { resolveInstance, leverInstance } from '../api'
 import { ClientCell } from '../components/ClientCell'
 import type { TadminInstance } from '../types'
 
@@ -345,7 +345,31 @@ function Instances() {
                     >
                       {joursDisplay(r.jours_restants)}
                     </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
+                    <td
+                      style={{
+                        ...td,
+                        textAlign: 'right',
+                        display: 'flex',
+                        gap: 6,
+                        justifyContent: 'flex-end',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await leverInstance(r.id)
+                            await reload()
+                          } catch (e: unknown) {
+                            alert(
+                              e instanceof Error ? e.message : 'Erreur',
+                            )
+                          }
+                        }}
+                        style={btnLever}
+                      >
+                        ↑ Lever
+                      </button>
                       <button
                         type="button"
                         onClick={() =>
@@ -396,6 +420,17 @@ const btnSecondary: React.CSSProperties = {
   borderRadius: 6,
   padding: '6px 14px',
   fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const btnLever: React.CSSProperties = {
+  background: '#dbeafe',
+  border: '1px solid #378ADD40',
+  color: '#1e40af',
+  borderRadius: 5,
+  padding: '4px 10px',
+  fontSize: 11,
   fontWeight: 600,
   cursor: 'pointer',
 }

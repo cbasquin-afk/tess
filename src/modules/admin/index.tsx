@@ -5,15 +5,17 @@ import { KpisProvider } from './context/KpisContext'
 import { lazyWithRetry } from '@/shared/lazyWithRetry'
 
 const Dashboard = lazyWithRetry(() => import('./views/Dashboard'))
+const ZoneTampon = lazyWithRetry(() => import('./views/ZoneTampon'))
 const Instances = lazyWithRetry(() => import('./views/Instances'))
 const Contrats = lazyWithRetry(() => import('./views/Contrats'))
-const Saisie = lazyWithRetry(() => import('./views/Saisie'))
+const Retractations = lazyWithRetry(() => import('./views/Retractations'))
+const ResiliationsV2 = lazyWithRetry(() => import('./views/ResiliationsV2'))
 const Clotures = lazyWithRetry(() => import('./views/Clotures'))
 const Frais = lazyWithRetry(() => import('./views/Frais'))
 
 // Layout route : wrap les vues qui consomment la liste contrats dans
 // un ContractsProvider partagé. Le Provider survit aux navigations
-// entre /admin/contrats, /admin/saisie et /admin/frais.
+// entre /admin/contrats et /admin/frais.
 function ContratsLayout() {
   return (
     <ContractsProvider>
@@ -22,11 +24,7 @@ function ContratsLayout() {
   )
 }
 
-// Auto-refresh global toutes les 5 minutes — fidèle au natif
-// `setInterval(loadAll, 5 * 60 * 1000)`. L'incrémentation du
-// refreshKey force le re-mount des Routes (donc le refetch de tous
-// les hooks utilisés par la vue active) et déclenche le refetch des
-// KPIs via la dépendance du KpisProvider.
+// Auto-refresh global toutes les 5 minutes
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
 function AdminModule() {
@@ -50,13 +48,15 @@ function AdminModule() {
       >
         <Routes key={refreshKey}>
           <Route index element={<Dashboard />} />
+          <Route path="zone-tampon" element={<ZoneTampon />} />
           <Route path="instances" element={<Instances />} />
           <Route path="clotures" element={<Clotures />} />
+          <Route path="retractations" element={<Retractations />} />
+          <Route path="resiliations" element={<ResiliationsV2 />} />
 
           {/* Routes partageant la liste contrats via ContractsProvider */}
           <Route element={<ContratsLayout />}>
             <Route path="contrats" element={<Contrats />} />
-            <Route path="saisie" element={<Saisie />} />
             <Route path="frais" element={<Frais />} />
           </Route>
 

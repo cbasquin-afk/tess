@@ -50,9 +50,11 @@ const PERFLEAD_GROUPS: readonly PerfLeadGroup[] = [
 
 const ADMIN_LINKS = [
   { path: '/admin', label: '📊 Dashboard' },
-  { path: '/admin/instances', label: '⚠️ Instances' },
+  { path: '/admin/zone-tampon', label: '📥 Zone Tampon', badge: 'zone_tampon' as const },
+  { path: '/admin/instances', label: '⚠️ Instances', badge: 'instances' as const },
   { path: '/admin/contrats', label: '📄 Contrats' },
-  { path: '/admin/saisie', label: '✏️ Saisie & Résil.' },
+  { path: '/admin/retractations', label: '↩ Rétractations' },
+  { path: '/admin/resiliations', label: '📋 Résiliations' },
   { path: '/admin/clotures', label: '📅 Clôtures ASAF' },
   { path: '/admin/frais', label: '💰 Frais de service' },
 ] as const
@@ -86,7 +88,10 @@ export function Sidebar() {
   const [openModule, setOpenModule] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
-  const [instancesBadge, setInstancesBadge] = useState<number>(0)
+  const [badges, setBadges] = useState<{ zone_tampon: number; instances: number }>({
+    zone_tampon: 0,
+    instances: 0,
+  })
 
   // visible mémoïsé pour éviter de re-déclencher useEffect à chaque render
   const visible = useMemo(
@@ -100,18 +105,17 @@ export function Sidebar() {
     if (active) setOpenModule(active.path)
   }, [location.pathname, visible])
 
-  // Badge instances : count direct sur tadmin_v_instances statut='En cours'.
+  // Badges admin : fetch via tadmin_get_badges RPC.
   // Rafraîchi à chaque navigation dans /admin/*.
   useEffect(() => {
     if (!location.pathname.startsWith('/admin')) return
     let cancelled = false
     void supabase
-      .from('tadmin_v_instances')
-      .select('*', { count: 'exact', head: true })
-      .in('statut', ['ouvert', 'En cours'])
-      .then(({ count }) => {
-        if (cancelled) return
-        setInstancesBadge(count ?? 0)
+      .rpc('tadmin_get_badges')
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        const d = data as { zone_tampon: number; instances: number }
+        setBadges({ zone_tampon: d.zone_tampon ?? 0, instances: d.instances ?? 0 })
       })
     return () => {
       cancelled = true
@@ -282,8 +286,8 @@ export function Sidebar() {
                   <div style={{ marginTop: 4, marginBottom: 6 }}>
                     {ADMIN_LINKS.map((sl) => {
                       const slActive = location.pathname === sl.path
-                      const showBadge =
-                        sl.path === '/admin/instances' && instancesBadge > 0
+                      const badgeKey = 'badge' in sl ? sl.badge : undefined
+                      const badgeCount = badgeKey ? badges[badgeKey] : 0
                       return (
                         <Link
                           key={sl.path}
@@ -304,21 +308,21 @@ export function Sidebar() {
                           }}
                         >
                           <span style={{ flex: 1 }}>{sl.label}</span>
-                          {showBadge && (
+                          {badgeCount > 0 && (
                             <span
                               style={{
                                 background: '#E24B4A',
                                 color: '#fff',
-                                borderRadius: 999,
-                                fontSize: 9,
+                                borderRadius: '50%',
+                                fontSize: 10,
                                 fontWeight: 700,
                                 padding: '1px 6px',
-                                lineHeight: '14px',
-                                minWidth: 16,
+                                minWidth: 18,
+                                display: 'inline-block',
                                 textAlign: 'center',
                               }}
                             >
-                              {instancesBadge}
+                              {badgeCount}
                             </span>
                           )}
                         </Link>

@@ -64,6 +64,57 @@ export interface TadminContrat {
   created_at: string
 }
 
+// ── Workflow statut ──────────────────────────────────────────
+export type WorkflowStatut = 'zone_tampon' | 'actif' | 'instance' | 'retracte' | 'resilie'
+
+// ── Vue tadmin_v_zone_tampon ─────────────────────────────────
+export interface ZoneTamponRow {
+  id: string
+  client: string
+  commercial_prenom: string | null
+  compagnie_assureur: string | null
+  cotisation_mensuelle: number | null
+  type_commission: string | null
+  date_signature: string | null
+  date_effet: string | null
+  statut_compagnie: string | null
+  workflow_statut: WorkflowStatut
+  type_contrat: string | null
+  origine: string | null
+}
+
+// ── Vue tadmin_v_retractations (admin) ───────────────────────
+export interface AdminRetractationRow {
+  id: string
+  client: string
+  commercial_prenom: string | null
+  compagnie_assureur: string | null
+  cotisation_mensuelle: number | null
+  type_commission: string | null
+  date_signature: string | null
+  origine: string | null
+}
+
+// ── Vue tadmin_v_resiliations_v2 ─────────────────────────────
+export interface ResiliationV2Row {
+  id: string
+  client: string
+  commercial_prenom: string | null
+  compagnie_assureur: string | null
+  date_signature: string | null
+  type_resiliation: string | null
+  date_resiliation: string | null
+  statut_demande: string | null
+  date_envoi: string | null
+  date_ar: string | null
+}
+
+// ── Badges (RPC tadmin_get_badges) ───────────────────────────
+export interface AdminBadges {
+  zone_tampon: number
+  instances: number
+}
+
 // ── Vue tadmin_v_asaf_clotures ────────────────────────────────
 export interface TadminAsafCloture {
   annee: number
