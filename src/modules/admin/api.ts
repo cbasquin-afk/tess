@@ -34,19 +34,15 @@ export async function fetchInstances(): Promise<TadminInstance[]> {
 }
 
 export async function fetchContrats(): Promise<TadminContrat[]> {
-  // Le natif charge tout puis re-trie par date_signature DESC côté client.
-  // On reproduit ce comportement ici.
+  // Uniquement les contrats actifs (validés depuis Zone Tampon).
+  // zone_tampon, retracte, resilie sont dans leurs onglets dédiés.
   const { data, error } = await supabase
     .from('tadmin_v_contrats')
     .select('*')
-    .order('created_at', { ascending: false })
+    .eq('workflow_statut', 'actif')
+    .order('date_signature', { ascending: false, nullsFirst: false })
   if (error) throw new Error(`tadmin_v_contrats: ${error.message}`)
-  const rows = (data ?? []) as TadminContrat[]
-  return [...rows].sort((a, b) => {
-    const da = a.date_signature ?? ''
-    const db = b.date_signature ?? ''
-    return db.localeCompare(da)
-  })
+  return (data ?? []) as TadminContrat[]
 }
 
 export async function fetchClotures(): Promise<TadminAsafCloture[]> {

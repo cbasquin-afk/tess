@@ -11,6 +11,8 @@ import {
   validerContrat,
   retracterContrat,
   passerInstance,
+  updateSaisie,
+  updateField,
 } from '../api'
 import { ClientCell } from '../components/ClientCell'
 import type { ZoneTamponRow } from '../types'
@@ -21,6 +23,38 @@ const COMMERCIAL_COLORS: Record<string, string> = {
   Mariam: '#534AB7',
   Christopher: '#1D9E75',
 }
+
+const TYPE_COMMISSION_OPTIONS = [
+  'PA 34/10',
+  'PA 30/10',
+  'PA 40/10',
+  'PS 25/15',
+  'PS 25/10',
+  'LE 20/20',
+  'LR 30/10',
+  'Linéaire 17',
+  'Linéaire 10',
+] as const
+
+const STATUT_CIE_OPTIONS = ['En attente', 'Validé', 'Instance'] as const
+
+const SAISIE_OPTIONS = [
+  'A scanner',
+  'Téléversée',
+  'Extranet',
+  'Mail cie',
+  'Saisie',
+] as const
+
+const RESIL_TYPES = [
+  '— Aucune —',
+  'Loi Châtel',
+  'Loi Hamon',
+  'Résiliation infra-annuelle',
+  'Résiliation à échéance',
+] as const
+
+const RESIL_STATUTS = ['A faire', 'Faite'] as const
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -48,6 +82,36 @@ function fmtEur(n: number | null): string {
   )
 }
 
+interface EditForm {
+  type_commission: string
+  date_signature: string
+  date_effet: string
+  statut_compagnie: string
+  statut_saisie: string
+  date_transmission: string
+  type_resiliation: string
+  resil_statut: string
+  date_envoi: string
+  date_ar: string
+  date_resiliation: string
+}
+
+function buildForm(r: ZoneTamponRow): EditForm {
+  return {
+    type_commission: r.type_commission ?? '',
+    date_signature: r.date_signature ?? '',
+    date_effet: r.date_effet ?? '',
+    statut_compagnie: r.statut_compagnie ?? 'En attente',
+    statut_saisie: '',
+    date_transmission: '',
+    type_resiliation: '— Aucune —',
+    resil_statut: 'A faire',
+    date_envoi: '',
+    date_ar: '',
+    date_resiliation: '',
+  }
+}
+
 function ZoneTampon() {
   const [rows, setRows] = useState<ZoneTamponRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,6 +120,9 @@ function ZoneTampon() {
   const [busy, setBusy] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [form, setForm] = useState<EditForm | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -79,11 +146,80 @@ function ZoneTampon() {
     return rows.filter((r) => r.client.toLowerCase().includes(q))
   }, [rows, search])
 
+  function toggleExpand(r: ZoneTamponRow) {
+    if (expandedId === r.id) {
+      setExpandedId(null)
+      setForm(null)
+    } else {
+      setExpandedId(r.id)
+      setForm(buildForm(r))
+    }
+  }
+
+  function updateForm<K extends keyof EditForm>(k: K, v: EditForm[K]) {
+    setForm((prev) => (prev ? { ...prev, [k]: v } : prev))
+  }
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 2500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  async function handleSave(id: string) {
+    if (!form) return
+    setSaving(true)
+    try {
+      // Update type_commission, dates, statut_compagnie via updateField
+      if (form.type_commission) {
+        await updateField(id, 'type_commission', form.type_commission)
+      }
+      if (form.date_signature) {
+        await updateField(id, 'date_signature', form.date_signature)
+      }
+      if (form.date_effet) {
+        await updateField(id, 'date_effet', form.date_effet)
+      }
+      if (form.statut_compagnie) {
+        await updateField(id, 'statut_compagnie', form.statut_compagnie)
+      }
+
+      // Update saisie + résiliation via updateSaisie
+      const resilType =
+        form.type_resiliation !== '— Aucune —'
+          ? form.type_resiliation
+          : null
+      await updateSaisie({
+        contrat_id: id,
+        statut_compagnie: form.statut_compagnie || null,
+        statut_saisie: form.statut_saisie || null,
+        type_resiliation: resilType,
+        resil_statut: resilType ? form.resil_statut : null,
+        date_resiliation: form.date_resiliation || null,
+        date_envoi: form.date_envoi || null,
+        date_ar: form.date_ar || null,
+      })
+
+      setToast('Enregistré')
+      await load()
+      // Re-populate form with fresh data
+      const fresh = rows.find((r) => r.id === id)
+      if (fresh) setForm(buildForm(fresh))
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleValider(id: string) {
     setBusy(id)
     setMenuOpen(null)
     try {
       await validerContrat(id)
+      setExpandedId(null)
+      setForm(null)
       await load()
     } finally {
       setBusy(null)
@@ -91,12 +227,18 @@ function ZoneTampon() {
   }
 
   async function handleRetracter(id: string) {
-    if (!window.confirm('Rétracter ce contrat ? Cette action est irréversible.'))
+    if (
+      !window.confirm(
+        'Rétracter ce contrat ? Cette action est irréversible.',
+      )
+    )
       return
     setBusy(id)
     setMenuOpen(null)
     try {
       await retracterContrat(id)
+      setExpandedId(null)
+      setForm(null)
       await load()
     } finally {
       setBusy(null)
@@ -104,24 +246,23 @@ function ZoneTampon() {
   }
 
   async function handleInstance(id: string) {
-    const motif = window.prompt('Motif de l\'instance (optionnel) :')
-    if (motif === null) return // cancelled
+    const motif = window.prompt("Motif de l'instance (optionnel) :")
+    if (motif === null) return
     setBusy(id)
     setMenuOpen(null)
     try {
       await passerInstance(id, motif || undefined)
+      setExpandedId(null)
+      setForm(null)
       await load()
     } finally {
       setBusy(null)
     }
   }
 
-  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return
-    function handleClick() {
-      setMenuOpen(null)
-    }
+    const handleClick = () => setMenuOpen(null)
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [menuOpen])
@@ -138,6 +279,27 @@ function ZoneTampon() {
           intégrées
         </p>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 16,
+            right: 16,
+            background: '#00C18B',
+            color: '#fff',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            zIndex: 999,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          }}
+        >
+          {toast}
+        </div>
+      )}
 
       {/* Search + count */}
       <div
@@ -159,70 +321,26 @@ function ZoneTampon() {
             setSearch(e.target.value)
           }
           placeholder="Rechercher un client…"
-          style={{
-            padding: '6px 12px',
-            fontSize: 13,
-            border: '1px solid #d1d5db',
-            borderRadius: 6,
-            background: '#f9fafb',
-            color: '#374151',
-            flex: 1,
-            maxWidth: 280,
-          }}
+          style={searchInput}
         />
         <div style={{ flex: 1 }} />
-        <span
-          style={{
-            background: '#f0f9ff',
-            color: '#1e40af',
-            padding: '4px 12px',
-            borderRadius: 12,
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
+        <span style={countBadge}>
           {visible.length} contrat{visible.length > 1 ? 's' : ''} à valider
         </span>
       </div>
 
       {/* Table */}
-      <div
-        style={{
-          background: '#fff',
-          border: '1px solid #e2e8f0',
-          borderRadius: 10,
-          padding: 18,
-          overflowX: 'auto',
-        }}
-      >
+      <div style={cardStyle}>
         {visible.length === 0 ? (
-          <div
-            style={{
-              color: '#94a3b8',
-              fontSize: 13,
-              fontStyle: 'italic',
-              textAlign: 'center',
-              padding: 24,
-            }}
-          >
-            Aucun contrat en zone tampon.
-          </div>
+          <div style={emptyStyle}>Aucun contrat en zone tampon.</div>
         ) : (
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 13,
-            }}
-          >
+          <table style={tableStyle}>
             <thead>
-              <tr
-                style={{ color: '#64748b', fontSize: 11, fontWeight: 600 }}
-              >
+              <tr style={trHead}>
                 <th style={th}>Client</th>
                 <th style={th}>Commercial</th>
                 <th style={th}>Compagnie</th>
-                <th style={th}>Cotis./mois</th>
+                <th style={th}>Cotis.</th>
                 <th style={th}>Type com.</th>
                 <th style={th}>Date sig.</th>
                 <th style={th}>Date effet</th>
@@ -242,7 +360,13 @@ function ZoneTampon() {
 
                 return (
                   <Fragment key={r.id}>
-                    <tr style={{ borderTop: '1px solid #f1f5f9' }}>
+                    <tr
+                      style={{
+                        borderTop: '1px solid #f1f5f9',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => toggleExpand(r)}
+                    >
                       <td style={td}>
                         <ClientCell name={r.client} />
                       </td>
@@ -288,6 +412,7 @@ function ZoneTampon() {
                           textAlign: 'right',
                           whiteSpace: 'nowrap',
                         }}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <div
                           style={{
@@ -297,30 +422,21 @@ function ZoneTampon() {
                             alignItems: 'center',
                           }}
                         >
-                          {/* Edit button → drill-down */}
                           <button
                             type="button"
-                            onClick={() =>
-                              setExpandedId(
-                                isExpanded ? null : r.id,
-                              )
-                            }
+                            onClick={() => toggleExpand(r)}
                             style={btnGray}
                             title="Détail"
                           >
-                            ✎
+                            {isExpanded ? '▾' : '✎'}
                           </button>
-
-                          {/* ··· menu */}
                           <div style={{ position: 'relative' }}>
                             <button
                               type="button"
                               disabled={isBusy}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                setMenuOpen(
-                                  isMenuOpen ? null : r.id,
-                                )
+                                setMenuOpen(isMenuOpen ? null : r.id)
                               }}
                               style={{
                                 ...btnGray,
@@ -333,20 +449,7 @@ function ZoneTampon() {
                             {isMenuOpen && (
                               <div
                                 onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  position: 'absolute',
-                                  right: 0,
-                                  top: '100%',
-                                  marginTop: 4,
-                                  background: '#fff',
-                                  border: '1px solid #e2e8f0',
-                                  borderRadius: 8,
-                                  boxShadow:
-                                    '0 4px 12px rgba(0,0,0,0.1)',
-                                  zIndex: 50,
-                                  minWidth: 160,
-                                  overflow: 'hidden',
-                                }}
+                                style={menuDropdown}
                               >
                                 <button
                                   type="button"
@@ -380,6 +483,7 @@ function ZoneTampon() {
                                   style={{
                                     ...menuItem,
                                     color: '#dc2626',
+                                    borderBottom: 'none',
                                   }}
                                 >
                                   <span>⚠</span> Instance
@@ -391,86 +495,228 @@ function ZoneTampon() {
                       </td>
                     </tr>
 
-                    {/* Drill-down */}
-                    {isExpanded && (
+                    {/* Drill-down — editable form */}
+                    {isExpanded && form && (
                       <tr>
                         <td
                           colSpan={9}
                           style={{ padding: 0, background: '#f8fafc' }}
                         >
-                          <div
-                            style={{
-                              borderTop: '1px solid #e2e8f0',
-                              padding: '14px 20px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 14,
-                            }}
-                          >
-                            {/* Données contrat */}
-                            <div>
-                              <h4
-                                style={{
-                                  margin: '0 0 8px',
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: '#0f172a',
-                                }}
-                              >
-                                Données contrat
-                              </h4>
-                              <div
-                                style={{
-                                  display: 'grid',
-                                  gridTemplateColumns:
-                                    'repeat(auto-fit, minmax(180px, 1fr))',
-                                  gap: 8,
-                                }}
-                              >
-                                <InfoField
-                                  label="Type contrat"
-                                  value={r.type_contrat}
-                                />
-                                <InfoField
-                                  label="Origine"
-                                  value={r.origine}
-                                />
-                                <InfoField
-                                  label="Compagnie"
-                                  value={r.compagnie_assureur}
-                                />
-                                <InfoField
-                                  label="Type commission"
-                                  value={r.type_commission}
-                                />
-                                <InfoField
-                                  label="Cotisation"
-                                  value={fmtEur(
-                                    r.cotisation_mensuelle,
-                                  )}
-                                />
-                                <InfoField
-                                  label="Date signature"
-                                  value={fmtDate(r.date_signature)}
-                                />
-                                <InfoField
-                                  label="Date effet"
-                                  value={fmtDate(r.date_effet)}
-                                />
-                                <InfoField
-                                  label="Statut compagnie"
-                                  value={r.statut_compagnie}
-                                />
+                          <div style={drilldownStyle}>
+                            {/* Section 1: Données contrat */}
+                            <Section title="Données contrat">
+                              <div style={fieldGrid}>
+                                <Field label="Type commission">
+                                  <select
+                                    value={form.type_commission}
+                                    onChange={(e) =>
+                                      updateForm(
+                                        'type_commission',
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={inputStyle}
+                                  >
+                                    <option value="">—</option>
+                                    {TYPE_COMMISSION_OPTIONS.map((o) => (
+                                      <option key={o} value={o}>
+                                        {o}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </Field>
+                                <Field label="Date signature">
+                                  <input
+                                    type="date"
+                                    value={form.date_signature}
+                                    onChange={(e) =>
+                                      updateForm(
+                                        'date_signature',
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={inputStyle}
+                                  />
+                                </Field>
+                                <Field label="Date effet">
+                                  <input
+                                    type="date"
+                                    value={form.date_effet}
+                                    onChange={(e) =>
+                                      updateForm(
+                                        'date_effet',
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={inputStyle}
+                                  />
+                                </Field>
+                                <Field label="Statut compagnie">
+                                  <select
+                                    value={form.statut_compagnie}
+                                    onChange={(e) =>
+                                      updateForm(
+                                        'statut_compagnie',
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={inputStyle}
+                                  >
+                                    {STATUT_CIE_OPTIONS.map((o) => (
+                                      <option key={o} value={o}>
+                                        {o}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </Field>
                               </div>
+                            </Section>
+
+                            {/* Section 2: Saisie compagnie */}
+                            <Section title="Saisie compagnie">
+                              <div style={fieldGrid}>
+                                <Field label="Statut saisie">
+                                  <select
+                                    value={form.statut_saisie}
+                                    onChange={(e) =>
+                                      updateForm(
+                                        'statut_saisie',
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={inputStyle}
+                                  >
+                                    <option value="">—</option>
+                                    {SAISIE_OPTIONS.map((o) => (
+                                      <option key={o} value={o}>
+                                        {o}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </Field>
+                                <Field label="Date de transmission">
+                                  <input
+                                    type="date"
+                                    value={form.date_transmission}
+                                    onChange={(e) =>
+                                      updateForm(
+                                        'date_transmission',
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={inputStyle}
+                                  />
+                                </Field>
+                              </div>
+                            </Section>
+
+                            {/* Section 3: Résiliation ancienne mutuelle */}
+                            <Section title="Résiliation ancienne mutuelle">
+                              <div style={fieldGrid}>
+                                <Field label="Type résiliation">
+                                  <select
+                                    value={form.type_resiliation}
+                                    onChange={(e) =>
+                                      updateForm(
+                                        'type_resiliation',
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={inputStyle}
+                                  >
+                                    {RESIL_TYPES.map((o) => (
+                                      <option key={o} value={o}>
+                                        {o}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </Field>
+                                {form.type_resiliation !== '— Aucune —' && (
+                                  <>
+                                    <Field label="Statut">
+                                      <select
+                                        value={form.resil_statut}
+                                        onChange={(e) =>
+                                          updateForm(
+                                            'resil_statut',
+                                            e.target.value,
+                                          )
+                                        }
+                                        style={inputStyle}
+                                      >
+                                        {RESIL_STATUTS.map((o) => (
+                                          <option key={o} value={o}>
+                                            {o}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </Field>
+                                    <Field label="Date envoi">
+                                      <input
+                                        type="date"
+                                        value={form.date_envoi}
+                                        onChange={(e) =>
+                                          updateForm(
+                                            'date_envoi',
+                                            e.target.value,
+                                          )
+                                        }
+                                        style={inputStyle}
+                                      />
+                                    </Field>
+                                    <Field label="Date AR compagnie">
+                                      <input
+                                        type="date"
+                                        value={form.date_ar}
+                                        onChange={(e) =>
+                                          updateForm(
+                                            'date_ar',
+                                            e.target.value,
+                                          )
+                                        }
+                                        style={inputStyle}
+                                      />
+                                    </Field>
+                                    <Field label="Date effective résiliation">
+                                      <input
+                                        type="date"
+                                        value={form.date_resiliation}
+                                        onChange={(e) =>
+                                          updateForm(
+                                            'date_resiliation',
+                                            e.target.value,
+                                          )
+                                        }
+                                        style={inputStyle}
+                                      />
+                                    </Field>
+                                  </>
+                                )}
+                              </div>
+                            </Section>
+
+                            {/* Enregistrer */}
+                            <div style={{ marginTop: 4 }}>
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => {
+                                  void handleSave(r.id)
+                                }}
+                                style={btnPrimary}
+                              >
+                                {saving ? '…' : 'Enregistrer'}
+                              </button>
                             </div>
 
-                            {/* Actions workflow */}
+                            {/* Workflow actions */}
                             <div
                               style={{
                                 display: 'flex',
                                 gap: 8,
                                 borderTop: '1px solid #e5e7eb',
                                 paddingTop: 12,
+                                marginTop: 4,
                               }}
                             >
                               <button
@@ -481,7 +727,7 @@ function ZoneTampon() {
                                 }}
                                 style={btnGreen}
                               >
-                                ✓ Valider
+                                ✓ Valider le contrat
                               </button>
                               <button
                                 type="button"
@@ -521,47 +767,127 @@ function ZoneTampon() {
 
 // ── Sub-components ──────────────────────────────────────────
 
-function InfoField({
-  label,
-  value,
+function Section({
+  title,
+  children,
 }: {
-  label: string
-  value: string | null
+  title: string
+  children: React.ReactNode
 }) {
   return (
     <div>
-      <div
-        style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8' }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 13,
-          color: value && value !== '—' ? '#0f172a' : '#cbd5e1',
-          marginTop: 2,
-        }}
-      >
-        {value ?? '—'}
-      </div>
+      <h4 style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+        {title}
+      </h4>
+      {children}
     </div>
   )
 }
 
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{ minWidth: 160, flex: '1 1 160px' }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#64748b', marginBottom: 3 }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+// ── Styles ──────────────────────────────────────────────────
+
+const tableStyle: React.CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 13,
+}
+const trHead: React.CSSProperties = {
+  color: '#64748b',
+  fontSize: 11,
+  fontWeight: 600,
+}
 const th: React.CSSProperties = {
   textAlign: 'left',
   padding: '8px 12px 8px 0',
   borderBottom: '1px solid #e5e7eb',
 }
 const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
-
+const cardStyle: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 10,
+  padding: 18,
+  overflowX: 'auto',
+}
+const emptyStyle: React.CSSProperties = {
+  color: '#94a3b8',
+  fontSize: 13,
+  fontStyle: 'italic',
+  textAlign: 'center',
+  padding: 24,
+}
+const searchInput: React.CSSProperties = {
+  padding: '6px 12px',
+  fontSize: 13,
+  border: '1px solid #d1d5db',
+  borderRadius: 6,
+  background: '#f9fafb',
+  color: '#374151',
+  flex: 1,
+  maxWidth: 280,
+}
+const countBadge: React.CSSProperties = {
+  background: '#f0f9ff',
+  color: '#1e40af',
+  padding: '4px 12px',
+  borderRadius: 12,
+  fontSize: 12,
+  fontWeight: 600,
+}
+const drilldownStyle: React.CSSProperties = {
+  borderTop: '1px solid #e2e8f0',
+  padding: '14px 20px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 14,
+}
+const fieldGrid: React.CSSProperties = {
+  display: 'flex',
+  gap: 14,
+  flexWrap: 'wrap',
+}
+const inputStyle: React.CSSProperties = {
+  padding: '6px 10px',
+  borderRadius: 6,
+  border: '1px solid #cbd5e1',
+  fontSize: 13,
+  width: '100%',
+  background: '#fff',
+}
+const btnPrimary: React.CSSProperties = {
+  background: '#00C18B',
+  border: 'none',
+  color: '#fff',
+  borderRadius: 6,
+  padding: '8px 18px',
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
 const btnGreen: React.CSSProperties = {
   background: '#ecfdf5',
   border: '1px solid #00C18B40',
   color: '#00A876',
   borderRadius: 5,
-  padding: '4px 10px',
-  fontSize: 11,
+  padding: '6px 14px',
+  fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
 }
@@ -580,10 +906,23 @@ const btnRed: React.CSSProperties = {
   border: '1px solid #E24B4A40',
   color: '#dc2626',
   borderRadius: 5,
-  padding: '4px 10px',
-  fontSize: 11,
+  padding: '6px 14px',
+  fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
+}
+const menuDropdown: React.CSSProperties = {
+  position: 'absolute',
+  right: 0,
+  top: '100%',
+  marginTop: 4,
+  background: '#fff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 8,
+  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+  zIndex: 50,
+  minWidth: 160,
+  overflow: 'hidden',
 }
 const menuItem: React.CSSProperties = {
   display: 'block',
