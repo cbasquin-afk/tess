@@ -249,6 +249,11 @@ export async function leverInstance(id: string): Promise<void> {
   if (error) throw new Error(`tadmin_lever_instance: ${error.message}`)
 }
 
+export async function retourZoneTampon(id: string): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_retour_zone_tampon', { p_contrat_id: id })
+  if (error) throw new Error(`tadmin_retour_zone_tampon: ${error.message}`)
+}
+
 export async function resilierContrat(
   id: string,
   type?: string,
