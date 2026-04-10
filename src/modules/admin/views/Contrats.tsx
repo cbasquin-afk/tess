@@ -10,11 +10,9 @@ import {
   deleteContrat,
   fetchCommissions,
   insertContrat,
-  updateSaisie,
   passerInstance,
   resilierContrat,
   type InsertContratParams,
-  type UpdateSaisieParams,
 } from '../api'
 import type { TadminCommission, TadminContrat } from '../types'
 import { ClientCell } from '../components/ClientCell'
@@ -48,30 +46,6 @@ const TYPE_CONTRAT_OPTIONS = [
 ] as const
 
 const ORIGINE_OPTIONS = ['Mapapp', 'Multi Equipement', 'Recommandation', 'Site'] as const
-
-const STATUT_COMPAGNIE_OPTIONS = [
-  'En attente',
-  'Validé',
-  'Instance',
-  'Rétracté',
-  'Résilié',
-] as const
-
-const STATUT_SAISIE_OPTIONS = [
-  'A scanner',
-  'Téléversée',
-  'Extranet',
-  'Instance',
-  'Mail cie',
-] as const
-
-const TYPE_RESILIATION_OPTIONS = [
-  '',
-  'Infra-annuelle',
-  'Loi Hamon',
-  'Loi Chatel',
-  'Résiliation échéance',
-] as const
 
 type FilterPill =
   | 'all'
@@ -150,26 +124,6 @@ function todayISO(): string {
 }
 
 // ── Drill-down edit form state ───────────────────────────────
-interface EditFormState {
-  statut_compagnie: string
-  statut_saisie: string
-  type_resiliation: string
-  date_resiliation: string
-  date_envoi: string
-  date_ar: string
-}
-
-function buildEditForm(c: TadminContrat): EditFormState {
-  return {
-    statut_compagnie: c.statut_compagnie ?? 'En attente',
-    statut_saisie: c.statut_saisie ?? '',
-    type_resiliation: c.type_resiliation ?? '',
-    date_resiliation: c.date_resiliation ?? '',
-    date_envoi: c.resil_date_envoi ?? '',
-    date_ar: c.resil_date_ar ?? '',
-  }
-}
-
 // ── Composant principal ──────────────────────────────────────
 function Contrats() {
   const { contrats, loading, error, reload } = useAdminContrats()
@@ -185,9 +139,7 @@ function Contrats() {
 
   // Drill-down state
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<EditFormState | null>(null)
   const [saving, setSaving] = useState(false)
-  const [drillError, setDrillError] = useState<string | null>(null)
 
   // Tri client-side
   const sorted = useMemo<TadminContrat[]>(() => {
@@ -236,77 +188,30 @@ function Contrats() {
   }
 
   function toggleExpand(c: TadminContrat) {
-    if (expandedId === c.id) {
-      setExpandedId(null)
-      setEditForm(null)
-      setDrillError(null)
-    } else {
-      setExpandedId(c.id)
-      setEditForm(buildEditForm(c))
-      setDrillError(null)
-    }
-  }
-
-  function updateEditField<K extends keyof EditFormState>(k: K, v: EditFormState[K]) {
-    setEditForm((prev) => (prev ? { ...prev, [k]: v } : prev))
-  }
-
-  async function handleSave(contratId: string) {
-    if (!editForm) return
-    setSaving(true)
-    setDrillError(null)
-    try {
-      const params: UpdateSaisieParams = {
-        contrat_id: contratId,
-        statut_compagnie: editForm.statut_compagnie || null,
-        statut_saisie: editForm.statut_saisie || null,
-        type_resiliation: editForm.type_resiliation || null,
-        resil_statut: null,
-        date_resiliation: editForm.date_resiliation || null,
-        date_envoi: editForm.date_envoi || null,
-        date_ar: editForm.date_ar || null,
-      }
-      await updateSaisie(params)
-      setExpandedId(null)
-      setEditForm(null)
-      void reload()
-    } catch (e: unknown) {
-      setDrillError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setSaving(false)
-    }
+    setExpandedId(expandedId === c.id ? null : c.id)
   }
 
   async function handlePasserInstance(contratId: string) {
     setSaving(true)
-    setDrillError(null)
     try {
       await passerInstance(contratId)
       setExpandedId(null)
-      setEditForm(null)
       void reload()
     } catch (e: unknown) {
-      setDrillError(e instanceof Error ? e.message : String(e))
+      alert(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
     }
   }
 
   async function handleResilier(contratId: string) {
-    if (!editForm) return
     setSaving(true)
-    setDrillError(null)
     try {
-      await resilierContrat(
-        contratId,
-        editForm.type_resiliation || undefined,
-        editForm.date_resiliation || undefined,
-      )
+      await resilierContrat(contratId)
       setExpandedId(null)
-      setEditForm(null)
       void reload()
     } catch (e: unknown) {
-      setDrillError(e instanceof Error ? e.message : String(e))
+      alert(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
     }
@@ -577,107 +482,36 @@ function Contrats() {
                       </td>
                     </tr>
 
-                    {/* Drill-down panel */}
-                    {isExpanded && editForm && (
+                    {/* Drill-down panel — read-only info */}
+                    {isExpanded && (
                       <tr>
                         <td colSpan={9} style={{ padding: 0, background: '#f8fafc' }}>
                           <div style={{ borderTop: '1px solid #e2e8f0', padding: '14px 20px' }}>
-                            {/* Editable fields */}
-                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12 }}>
-                              <DrillField label="Statut compagnie">
-                                <select
-                                  value={editForm.statut_compagnie}
-                                  onChange={(e) => updateEditField('statut_compagnie', e.target.value)}
-                                  style={inputStyle}
-                                  disabled={saving}
-                                >
-                                  {STATUT_COMPAGNIE_OPTIONS.map((o) => (
-                                    <option key={o} value={o}>{o}</option>
-                                  ))}
-                                </select>
-                              </DrillField>
-                              <DrillField label="Statut saisie">
-                                <select
-                                  value={editForm.statut_saisie}
-                                  onChange={(e) => updateEditField('statut_saisie', e.target.value)}
-                                  style={inputStyle}
-                                  disabled={saving}
-                                >
-                                  <option value="">—</option>
-                                  {STATUT_SAISIE_OPTIONS.map((o) => (
-                                    <option key={o} value={o}>{o}</option>
-                                  ))}
-                                </select>
-                              </DrillField>
-                              <DrillField label="Type résiliation">
-                                <select
-                                  value={editForm.type_resiliation}
-                                  onChange={(e) => updateEditField('type_resiliation', e.target.value)}
-                                  style={inputStyle}
-                                  disabled={saving}
-                                >
-                                  {TYPE_RESILIATION_OPTIONS.map((o) => (
-                                    <option key={o} value={o}>{o || '— Aucun —'}</option>
-                                  ))}
-                                </select>
-                              </DrillField>
-                            </div>
-                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-                              <DrillField label="Date résiliation">
-                                <input
-                                  type="date"
-                                  value={editForm.date_resiliation}
-                                  onChange={(e) => updateEditField('date_resiliation', e.target.value)}
-                                  style={inputStyle}
-                                  disabled={saving}
-                                />
-                              </DrillField>
-                              <DrillField label="Date envoi lettre">
-                                <input
-                                  type="date"
-                                  value={editForm.date_envoi}
-                                  onChange={(e) => updateEditField('date_envoi', e.target.value)}
-                                  style={inputStyle}
-                                  disabled={saving}
-                                />
-                              </DrillField>
-                              <DrillField label="Date AR">
-                                <input
-                                  type="date"
-                                  value={editForm.date_ar}
-                                  onChange={(e) => updateEditField('date_ar', e.target.value)}
-                                  style={inputStyle}
-                                  disabled={saving}
-                                />
-                              </DrillField>
+                            {/* Transmission compagnie */}
+                            <h4 style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              Transmission compagnie
+                            </h4>
+                            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
+                              <DrillInfo label="Statut saisie" value={c.statut_saisie} />
+                              <DrillInfo label="Statut compagnie" value={c.statut_compagnie} />
+                              <DrillInfo label="Type contrat" value={c.type_contrat} />
+                              <DrillInfo label="Origine" value={c.origine} />
                             </div>
 
-                            {drillError && (
-                              <div
-                                style={{
-                                  color: '#dc2626',
-                                  fontSize: 12,
-                                  marginBottom: 10,
-                                  padding: '6px 10px',
-                                  background: '#fef2f2',
-                                  border: '1px solid #fecaca',
-                                  borderRadius: 6,
-                                }}
-                              >
-                                {drillError}
-                              </div>
-                            )}
+                            {/* Résiliation */}
+                            <h4 style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              Résiliation
+                            </h4>
+                            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
+                              <DrillInfo label="Type résiliation" value={c.type_resiliation} />
+                              <DrillInfo label="Statut résiliation" value={c.resil_statut} />
+                              <DrillInfo label="Date résiliation" value={fmtDate(c.date_resiliation)} />
+                              <DrillInfo label="Date envoi lettre" value={fmtDate(c.resil_date_envoi)} />
+                              <DrillInfo label="Date AR" value={fmtDate(c.resil_date_ar)} />
+                            </div>
 
                             {/* Action buttons */}
-                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => { void handleSave(c.id) }}
-                                style={btnPrimary}
-                              >
-                                {saving ? '...' : 'Enregistrer'}
-                              </button>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
                               <button
                                 type="button"
                                 disabled={saving}
@@ -688,7 +522,7 @@ function Contrats() {
                                   borderColor: '#BA7517',
                                 }}
                               >
-                                Passer en Instance
+                                ⚠ Passer en Instance
                               </button>
                               <button
                                 type="button"
@@ -700,7 +534,7 @@ function Contrats() {
                                   borderColor: '#E24B4A',
                                 }}
                               >
-                                Résilier
+                                ✗ Résilier
                               </button>
 
                               <div style={{ flex: 1 }} />
@@ -780,23 +614,21 @@ function RowGroup({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function DrillField({ label, children }: { label: string; children: React.ReactNode }) {
+function DrillInfo({ label, value }: { label: string; value: string | null }) {
   return (
-    <div style={{ minWidth: 160, flex: '1 1 160px' }}>
-      <label
+    <div style={{ minWidth: 140 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8' }}>
+        {label}
+      </div>
+      <div
         style={{
-          display: 'block',
-          fontSize: 10,
-          fontWeight: 600,
-          color: '#64748b',
-          marginBottom: 3,
-          textTransform: 'uppercase',
-          letterSpacing: '.05em',
+          fontSize: 13,
+          color: value && value !== '—' ? '#0f172a' : '#cbd5e1',
+          marginTop: 2,
         }}
       >
-        {label}
-      </label>
-      {children}
+        {value ?? '—'}
+      </div>
     </div>
   )
 }
