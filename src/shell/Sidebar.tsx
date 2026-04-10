@@ -100,20 +100,18 @@ export function Sidebar() {
     if (active) setOpenModule(active.path)
   }, [location.pathname, visible])
 
-  // Badge instances : fetch léger du KPI tadmin_v_kpis.instances_ouvertes
-  // à chaque navigation dans /admin/*. Pas de polling — on rafraîchit
-  // sur navigation, ce qui suffit pour un signal raisonnablement frais.
+  // Badge instances : count direct sur tadmin_v_instances statut='En cours'.
+  // Rafraîchi à chaque navigation dans /admin/*.
   useEffect(() => {
     if (!location.pathname.startsWith('/admin')) return
     let cancelled = false
     void supabase
-      .from('tadmin_v_kpis')
-      .select('instances_ouvertes')
-      .maybeSingle<{ instances_ouvertes: number | null }>()
-      .then(({ data }) => {
+      .from('tadmin_v_instances')
+      .select('*', { count: 'exact', head: true })
+      .in('statut', ['ouvert', 'En cours'])
+      .then(({ count }) => {
         if (cancelled) return
-        const n = Number(data?.instances_ouvertes ?? 0)
-        setInstancesBadge(isNaN(n) ? 0 : n)
+        setInstancesBadge(count ?? 0)
       })
     return () => {
       cancelled = true

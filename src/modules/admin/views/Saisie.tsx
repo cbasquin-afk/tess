@@ -9,11 +9,12 @@ import { InlineInput } from '../components/InlineInput'
 import { ClientCell } from '../components/ClientCell'
 import type { TadminContrat } from '../types'
 
-// Options unifiées avec celles du modal-saisie pour cohérence
 const SAISIE_INLINE_OPTIONS: readonly InlineSelectOption[] = [
-  { value: 'NON SAISI', label: 'Non saisi', color: '#888780' },
-  { value: 'EN ATTENTE', label: 'En attente', color: '#BA7517' },
-  { value: 'VALIDE', label: 'Validé', color: '#1D9E75' },
+  { value: 'A scanner', label: 'A scanner', color: '#888780' },
+  { value: 'Téléversée', label: 'Téléversée', color: '#378ADD' },
+  { value: 'Extranet', label: 'Extranet', color: '#534AB7' },
+  { value: 'Instance', label: 'Instance', color: '#E24B4A' },
+  { value: 'Mail cie', label: 'Mail cie', color: '#BA7517' },
 ]
 
 const STATUT_CIE_INLINE_OPTIONS: readonly InlineSelectOption[] = [
