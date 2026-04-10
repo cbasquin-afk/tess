@@ -582,6 +582,18 @@ function Contrats() {
                                 <DrillInfo label="Date résiliation" value={fmtDate(c.date_resiliation)} />
                                 <DrillInfo label="Date envoi lettre" value={fmtDate(c.resil_date_envoi)} />
                                 <DrillInfo label="Date AR" value={fmtDate(c.resil_date_ar)} />
+                                {c.resil_url_depot && (
+                                  <div style={{ minWidth: 140 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8' }}>Preuve de dépôt</div>
+                                    <a href={c.resil_url_depot} target="_blank" rel="noopener noreferrer" title="Ouvrir le PDF de preuve de dépôt" style={{ color: '#2563eb', textDecoration: 'underline', fontSize: 13 }}>📄 Voir le document</a>
+                                  </div>
+                                )}
+                                {c.resil_url_ar && (
+                                  <div style={{ minWidth: 140 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8' }}>Accusé de réception</div>
+                                    <a href={c.resil_url_ar} target="_blank" rel="noopener noreferrer" title="Ouvrir le PDF d'accusé de réception" style={{ color: '#2563eb', textDecoration: 'underline', fontSize: 13 }}>📄 Voir le document</a>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
