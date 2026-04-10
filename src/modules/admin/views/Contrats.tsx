@@ -30,6 +30,13 @@ const COMM_COLORS: Record<string, string> = {
   Christopher: '#1D9E75',
 }
 
+const RESIL_SANS_ACTION = [
+  'Pas de mutuelle',
+  'Départ à la retraite',
+  'Fin de portabilité',
+  'Client lui-même',
+]
+
 const STATUT_COLORS: Record<string, string> = {
   'En attente': '#BA7517',
   Validé: '#1D9E75',
@@ -578,10 +585,14 @@ function Contrats() {
                               <h4 style={sectionTitle}>Résiliation</h4>
                               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                                 <DrillInfo label="Type résiliation" value={c.type_resiliation} />
-                                <DrillInfo label="Statut résiliation" value={c.resil_statut} />
-                                <DrillInfo label="Date résiliation" value={fmtDate(c.date_resiliation)} />
-                                <DrillInfo label="Date envoi lettre" value={fmtDate(c.resil_date_envoi)} />
-                                <DrillInfo label="Date AR" value={fmtDate(c.resil_date_ar)} />
+                                {c.type_resiliation && !RESIL_SANS_ACTION.includes(c.type_resiliation) && (
+                                  <>
+                                    <DrillInfo label="Statut résiliation" value={c.resil_statut} />
+                                    <DrillInfo label="Date résiliation" value={fmtDate(c.date_resiliation)} />
+                                    <DrillInfo label="Date envoi lettre" value={fmtDate(c.resil_date_envoi)} />
+                                    <DrillInfo label="Date AR" value={fmtDate(c.resil_date_ar)} />
+                                  </>
+                                )}
                                 {c.resil_url_depot && (
                                   <div style={{ minWidth: 140 }}>
                                     <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8' }}>Preuve de dépôt</div>
