@@ -1,6 +1,6 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useInstances } from '../hooks/useInstances'
-import { resolveInstance, leverInstance } from '../api'
+import { resolveInstance, leverInstance, retracterContrat } from '../api'
 import { ClientCell } from '../components/ClientCell'
 import type { TadminInstance } from '../types'
 
@@ -356,6 +356,7 @@ function Instances() {
                     >
                       <button
                         type="button"
+                        title="Instance résolue — le contrat retourne dans Contrats avec statut Validé"
                         onClick={async () => {
                           try {
                             await leverInstance(r.id)
@@ -366,22 +367,32 @@ function Instances() {
                             )
                           }
                         }}
-                        style={btnLever}
+                        style={btnResolue}
                       >
-                        ↑ Lever
+                        ✓ Résolue
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
-                          setResolveTarget({
-                            id: r.id,
-                            client: r.client_nom,
-                            gmailMessageId: r.gmail_message_id,
-                          })
-                        }
-                        style={btnResolve}
+                        title="Instance non résolue — le contrat bascule en Rétractation"
+                        onClick={async () => {
+                          if (
+                            !window.confirm(
+                              'Confirmer : ce contrat va basculer en Rétractation.',
+                            )
+                          )
+                            return
+                          try {
+                            await retracterContrat(r.id)
+                            await reload()
+                          } catch (e: unknown) {
+                            alert(
+                              e instanceof Error ? e.message : 'Erreur',
+                            )
+                          }
+                        }}
+                        style={btnNonResolue}
                       >
-                        ✓ Résoudre
+                        ✗ Non résolue
                       </button>
                     </td>
                   </tr>
@@ -424,25 +435,25 @@ const btnSecondary: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const btnLever: React.CSSProperties = {
-  background: '#dbeafe',
-  border: '1px solid #378ADD40',
-  color: '#1e40af',
-  borderRadius: 5,
-  padding: '4px 10px',
-  fontSize: 11,
+const btnResolue: React.CSSProperties = {
+  padding: '6px 14px',
+  borderRadius: 6,
+  fontSize: 13,
   fontWeight: 600,
+  background: '#1D9E75',
+  color: '#fff',
+  border: 'none',
   cursor: 'pointer',
 }
 
-const btnResolve: React.CSSProperties = {
-  background: '#ecfdf5',
-  border: '1px solid #00C18B40',
-  color: '#00A876',
-  borderRadius: 5,
-  padding: '4px 10px',
-  fontSize: 11,
+const btnNonResolue: React.CSSProperties = {
+  padding: '6px 14px',
+  borderRadius: 6,
+  fontSize: 13,
   fontWeight: 600,
+  background: '#fff',
+  color: '#E24B4A',
+  border: '1px solid #E24B4A',
   cursor: 'pointer',
 }
 
