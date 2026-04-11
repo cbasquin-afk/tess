@@ -359,7 +359,7 @@ function Instances() {
                         title="Instance résolue — le contrat retourne dans Contrats avec statut Validé"
                         onClick={async () => {
                           try {
-                            await leverInstance(r.id)
+                            await leverInstance(r.contrat_id ?? r.id)
                             await reload()
                           } catch (e: unknown) {
                             alert(
@@ -382,7 +382,7 @@ function Instances() {
                           )
                             return
                           try {
-                            await retracterContrat(r.id)
+                            await retracterContrat(r.contrat_id ?? r.id)
                             await reload()
                           } catch (e: unknown) {
                             alert(

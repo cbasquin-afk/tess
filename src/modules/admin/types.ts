@@ -18,6 +18,7 @@ export type TadminSource = 'ASAF' | 'FMA' | 'SMATIS' | 'VERALTI' | string
 
 export interface TadminInstance {
   id: string
+  contrat_id: string | null
   client_nom: string
   source: TadminSource
   motif: string | null
