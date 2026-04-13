@@ -34,6 +34,14 @@ export const MODULES: ModuleConfig[] = [
     loader: () => import('../modules/finances'),
   },
   {
+    id: 'partenaires',
+    label: 'Partenaires',
+    icon: '🤝',
+    path: '/partenaires',
+    minRole: 'admin',
+    loader: () => import('../modules/partenaires'),
+  },
+  {
     id: 'conformite',
     label: 'Conformité',
     icon: '🛡️',
