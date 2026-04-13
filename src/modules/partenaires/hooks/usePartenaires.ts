@@ -7,8 +7,6 @@ import type {
   ConditionReprise,
 } from '../types'
 
-const schema = () => supabase.schema('partenaires')
-
 export function usePartenaires() {
   const [compagnies, setCompagnies] = useState<Compagnie[]>([])
   const [offres, setOffres] = useState<OffreRemuneration[]>([])
@@ -22,10 +20,10 @@ export function usePartenaires() {
     setError(null)
     try {
       const [rComp, rOffres, rProto, rRepr] = await Promise.all([
-        schema().from('compagnies').select('*').order('nom'),
-        schema().from('offres_remuneration').select('*').order('compagnie_id'),
-        schema().from('protocoles').select('*').order('compagnie_id'),
-        schema().from('conditions_reprise').select('*').order('compagnie_id'),
+        supabase.from('partenaires_v_compagnies').select('*').order('nom'),
+        supabase.from('partenaires_v_offres_remuneration').select('*').order('compagnie_id'),
+        supabase.from('partenaires_v_protocoles').select('*').order('compagnie_id'),
+        supabase.from('partenaires_v_conditions_reprise').select('*').order('compagnie_id'),
       ])
       if (rComp.error) throw new Error(`compagnies: ${rComp.error.message}`)
       if (rOffres.error) throw new Error(`offres_remuneration: ${rOffres.error.message}`)
