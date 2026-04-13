@@ -6,10 +6,12 @@ import type {
   CommissionMandataireDetail,
   CommissionRow,
   ContratLean,
+  FactureMandataire,
   MargeMensuelle,
   PortefeuilleRow,
   RepriseRow,
   RetractationRow,
+  StatutFacture,
   Versement,
 } from './types'
 
@@ -323,4 +325,49 @@ export async function upsertCharge(params: {
 export async function deleteCharge(id: string): Promise<void> {
   const { error } = await supabase.rpc('tadmin_delete_charge', { p_id: id })
   if (error) throw new Error(`tadmin_delete_charge: ${error.message}`)
+}
+
+// ── Factures mandataires ────────────────────────────────────
+export async function fetchFactures(): Promise<FactureMandataire[]> {
+  const { data, error } = await supabase
+    .from('finances_v_factures_mandataires')
+    .select('*')
+    .order('annee', { ascending: false })
+    .order('mois', { ascending: false })
+  if (error) throw new Error(`finances_v_factures_mandataires: ${error.message}`)
+  return (data ?? []) as FactureMandataire[]
+}
+
+export async function insertFacture(params: {
+  commercial_id: string
+  annee: number
+  mois: number
+  montant_ht: number
+  montant_tva: number
+  notes?: string | null
+}): Promise<void> {
+  const { error } = await supabase
+    .schema('finances')
+    .from('factures_mandataires')
+    .insert({
+      commercial_id: params.commercial_id,
+      annee: params.annee,
+      mois: params.mois,
+      montant_ht: params.montant_ht,
+      montant_tva: params.montant_tva,
+      notes: params.notes ?? null,
+    })
+  if (error) throw new Error(`insert facture: ${error.message}`)
+}
+
+export async function updateFactureStatut(
+  id: string,
+  statut: StatutFacture,
+): Promise<void> {
+  const { error } = await supabase
+    .schema('finances')
+    .from('factures_mandataires')
+    .update({ statut, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw new Error(`update facture statut: ${error.message}`)
 }

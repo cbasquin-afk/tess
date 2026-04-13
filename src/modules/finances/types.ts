@@ -195,3 +195,23 @@ export interface ChargeMensuelle {
   notes: string | null
   created_at: string
 }
+
+// ── Vue finances_v_factures_mandataires ─────────────────────
+export type StatutFacture = 'a_generer' | 'generee' | 'envoyee' | 'payee'
+
+export interface FactureMandataire {
+  id: string
+  commercial_id: string
+  commercial_prenom: string | null
+  annee: number
+  mois: number
+  montant_ht: number
+  montant_tva: number
+  montant_ttc: number
+  statut: StatutFacture
+  numero_facture: string | null
+  url_document: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}

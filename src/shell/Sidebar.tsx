@@ -67,6 +67,8 @@ const FINANCES_LINKS = [
   { path: '/finances/versements', label: '🏦 Versements' },
   { path: '/finances/reprises', label: '↩ Reprises' },
   { path: '/finances/marge', label: '📉 Marge mensuelle' },
+  { path: '/finances/charges', label: '💳 Charges' },
+  { path: '/finances/factures', label: '🧾 Factures' },
 ] as const
 
 // PerfLead, Admin et Finances ont une sous-navigation. Si d'autres
