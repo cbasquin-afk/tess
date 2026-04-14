@@ -1,11 +1,19 @@
 import { useMemo, useState } from 'react'
 import { Badge, Table } from '@/shared/ui'
 import type { TableColumn } from '@/shared/ui'
-import type { Compagnie, OffreRemuneration, Verticale, StatutData } from '../types'
+import { supabase } from '@/shared/supabase'
+import type {
+  Compagnie,
+  OffreRemuneration,
+  Verticale,
+  StatutData,
+  TypeCommission,
+} from '../types'
 
 interface Props {
   compagnies: Compagnie[]
   offres: OffreRemuneration[]
+  onReload: () => Promise<void>
 }
 
 const VERTICALE_LABELS: Record<Verticale, string> = {
@@ -22,6 +30,24 @@ const VERTICALE_LABELS: Record<Verticale, string> = {
   autre: 'Autre',
 }
 
+const TYPE_COM_LABELS: Record<TypeCommission, string> = {
+  LR: 'Linéaire classique',
+  LE: 'Linéaire escompté',
+  PA: 'Précompte avancé',
+  PS: 'Précompte standard',
+  PA_LR: 'Précompte + Linéaire',
+}
+
+const TYPE_COM_TOOLTIPS: Record<TypeCommission, string> = {
+  LR: 'Versé chaque mois, taux identique sur toute la durée',
+  LE: 'Taux renforcé la 1ère année, réduit ensuite',
+  PA: 'Versé le mois suivant la signature du contrat',
+  PS: "Versé le mois suivant la prise d'effet",
+  PA_LR: 'Précompte 1ère année puis linéaire',
+}
+
+const TYPE_COM_OPTIONS: TypeCommission[] = ['LR', 'LE', 'PA', 'PS', 'PA_LR']
+
 const STATUT_DATA_TONES: Record<StatutData, 'success' | 'warning' | 'danger'> = {
   complet: 'success',
   incomplet: 'warning',
@@ -33,7 +59,81 @@ function pct(v: number | null): string {
   return `${v}%`
 }
 
-export function TabOffres({ compagnies, offres }: Props) {
+// ── Cellule éditable type_commission ─────────────────────────
+interface TypeCommissionCellProps {
+  offre: OffreRemuneration
+  onReload: () => Promise<void>
+}
+
+function TypeCommissionCell({ offre, onReload }: TypeCommissionCellProps) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const handleChange = async (newVal: TypeCommission) => {
+    if (newVal === offre.type_commission) {
+      setEditing(false)
+      return
+    }
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .schema('partenaires')
+        .from('offres_remuneration')
+        .update({ type_commission: newVal })
+        .eq('id', offre.id)
+      if (error) throw new Error(error.message)
+      await onReload()
+    } catch (e: unknown) {
+      alert(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSaving(false)
+      setEditing(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        disabled={saving}
+        defaultValue={offre.type_commission}
+        onChange={(e) => void handleChange(e.target.value as TypeCommission)}
+        onBlur={() => setEditing(false)}
+        style={{
+          padding: '4px 6px',
+          borderRadius: 4,
+          border: '1px solid #1f3a8a',
+          fontSize: 12,
+          background: '#fff',
+        }}
+      >
+        {TYPE_COM_OPTIONS.map((k) => (
+          <option key={k} value={k}>
+            {TYPE_COM_LABELS[k]}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  const label = TYPE_COM_LABELS[offre.type_commission] ?? offre.type_commission
+  const tooltip = TYPE_COM_TOOLTIPS[offre.type_commission] ?? ''
+
+  return (
+    <span
+      title={tooltip}
+      onClick={() => setEditing(true)}
+      style={{
+        cursor: 'pointer',
+        display: 'inline-block',
+      }}
+    >
+      <Badge tone="neutral">{label}</Badge>
+    </span>
+  )
+}
+
+export function TabOffres({ compagnies, offres, onReload }: Props) {
   const [verticale, setVerticale] = useState<Verticale | ''>('')
   const [compagnieId, setCompagnieId] = useState('')
   const [statutData, setStatutData] = useState<StatutData | ''>('')
@@ -78,9 +178,7 @@ export function TabOffres({ compagnies, offres }: Props) {
     {
       key: 'type_commission',
       header: 'Structure',
-      render: (r) => (
-        <Badge tone="neutral">{r.type_commission}</Badge>
-      ),
+      render: (r) => <TypeCommissionCell offre={r} onReload={onReload} />,
     },
     {
       key: 'taux_acq_pct',

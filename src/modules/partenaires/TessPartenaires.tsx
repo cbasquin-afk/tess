@@ -18,7 +18,7 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function TessPartenaires() {
   const [activeTab, setActiveTab] = useState<TabId>('compagnies')
-  const { compagnies, offres, protocoles, reprises, loading, error } = usePartenaires()
+  const { compagnies, offres, protocoles, reprises, loading, error, reload } = usePartenaires()
 
   return (
     <div style={{ padding: 24 }}>
@@ -81,7 +81,7 @@ export default function TessPartenaires() {
       {!loading && !error && (
         <>
           {activeTab === 'compagnies' && <TabCompagnies compagnies={compagnies} offres={offres} />}
-          {activeTab === 'offres' && <TabOffres compagnies={compagnies} offres={offres} />}
+          {activeTab === 'offres' && <TabOffres compagnies={compagnies} offres={offres} onReload={reload} />}
           {activeTab === 'protocoles' && <TabProtocoles compagnies={compagnies} protocoles={protocoles} />}
           {activeTab === 'reprises' && <TabReprises compagnies={compagnies} reprises={reprises} />}
           {activeTab === 'simulateur' && <TabSimulateur compagnies={compagnies} offres={offres} />}
