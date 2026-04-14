@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
-import { addDays, format, parseISO } from 'date-fns'
+import { addDays, format, getISOWeek, parseISO } from 'date-fns'
 import {
-  BarController,
-  BarElement,
   CategoryScale,
   Chart as ChartJS,
   Legend,
@@ -19,11 +17,9 @@ import { useStats } from '../hooks/useStats'
 import { useHebdo } from '../hooks/useHebdo'
 
 ChartJS.register(
-  BarController,
   LineController,
   CategoryScale,
   LinearScale,
-  BarElement,
   LineElement,
   PointElement,
   Tooltip,
@@ -33,7 +29,9 @@ ChartJS.register(
 const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const
 
 function txTransfoColor(tx: number): string {
-  return tx >= 12 ? '#1D9E75' : '#E24B4A'
+  if (tx >= 15) return '#10b981'
+  if (tx >= 10) return '#f59e0b'
+  return '#ef4444'
 }
 
 function txConvColor(tx: number): string {
@@ -48,6 +46,10 @@ function fmtDateFr(iso: string): string {
   }
 }
 
+function weekLabelShort(dateDebut: Date): string {
+  return `S${getISOWeek(dateDebut)}·${format(dateDebut, 'dd/MM')}`
+}
+
 interface DayBucket {
   dateKey: string
   jour: string
@@ -57,6 +59,26 @@ interface DayBucket {
   nrp: number
   perdu: number
   inexploitable: number
+}
+
+// ── Cellule valeur + pourcentage ────────────────────────────
+interface ValuePctProps {
+  value: number
+  total: number
+  color: string
+  bold?: boolean
+}
+
+function ValuePct({ value, total, color, bold }: ValuePctProps) {
+  const pct = total > 0 ? (value / total) * 100 : 0
+  return (
+    <span style={{ color, fontWeight: bold ? 600 : undefined }}>
+      {value}
+      <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 4 }}>
+        {pct.toFixed(1)}%
+      </span>
+    </span>
+  )
 }
 
 function Hebdo() {
@@ -104,7 +126,7 @@ function Hebdo() {
       let b = byDay.get(dateKey)
       if (!b) {
         const d = parseISO(dateKey)
-        const idx = (d.getDay() + 6) % 7 // 0=Lun ... 6=Dim
+        const idx = (d.getDay() + 6) % 7
         b = {
           dateKey,
           jour: JOURS[idx] ?? '?',
@@ -133,75 +155,110 @@ function Hebdo() {
     setDrillWeek((prev) => (prev === weekKey ? null : weekKey))
   }
 
-  // Graphique : ordre chronologique (ancien → récent), donc reverse
-  const chartLabels = useMemo(
-    () => [...weeks].reverse().map((w) => w.weekLabel),
-    [weeks],
-  )
-  const chartLeadsData = useMemo(
-    () => [...weeks].reverse().map((w) => w.leads),
-    [weeks],
-  )
-  const chartTxData = useMemo(
-    () =>
-      [...weeks].reverse().map((w) => Number(w.txTransformation.toFixed(1))),
-    [weeks],
-  )
+  // ── Graphique : 5 taux par semaine (ordre chronologique) ──
+  const chartWeeks = useMemo(() => [...weeks].reverse(), [weeks])
 
-  const chartData = useMemo<ChartData<'bar' | 'line'>>(
-    () => ({
-      labels: chartLabels,
+  const chartData = useMemo<ChartData<'line'>>(() => {
+    const labels = chartWeeks.map((w) => weekLabelShort(w.dateDebut))
+    const pct = (n: number, total: number) => (total > 0 ? (n / total) * 100 : 0)
+    const txTransfo = chartWeeks.map((w) => Number(w.txTransformation.toFixed(2)))
+    const txConv = chartWeeks.map((w) => Number(w.txConversion.toFixed(2)))
+    const txNrp = chartWeeks.map((w) => Number(pct(w.nrp, w.leads).toFixed(2)))
+    const txPerdu = chartWeeks.map((w) => Number(pct(w.perdu, w.leads).toFixed(2)))
+    const txInex = chartWeeks.map((w) =>
+      Number(pct(w.inexploitable, w.leads).toFixed(2)),
+    )
+
+    return {
+      labels,
       datasets: [
         {
-          type: 'bar',
-          label: 'Leads',
-          data: chartLeadsData,
-          backgroundColor: 'rgba(55, 138, 221, 0.35)',
-          borderColor: '#378ADD',
-          borderWidth: 1,
-          borderRadius: 4,
-          yAxisID: 'y',
-          order: 2,
-        },
-        {
-          type: 'line',
           label: 'Tx transformation',
-          data: chartTxData,
-          borderColor: '#378ADD',
-          backgroundColor: 'transparent',
-          pointBackgroundColor: '#378ADD',
+          data: txTransfo,
+          borderColor: '#10b981',
+          backgroundColor: '#10b981',
+          pointBackgroundColor: '#10b981',
           borderWidth: 2.5,
           pointRadius: 4,
-          yAxisID: 'y2',
-          tension: 0.3,
-          order: 1,
+          tension: 0.25,
+        },
+        {
+          label: 'Tx conversion',
+          data: txConv,
+          borderColor: '#3b82f6',
+          backgroundColor: '#3b82f6',
+          pointBackgroundColor: '#3b82f6',
+          borderDash: [5, 4],
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25,
+        },
+        {
+          label: 'Tx NRP',
+          data: txNrp,
+          borderColor: '#f59e0b',
+          backgroundColor: '#f59e0b',
+          pointBackgroundColor: '#f59e0b',
+          borderDash: [5, 4],
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25,
+        },
+        {
+          label: 'Tx perdu',
+          data: txPerdu,
+          borderColor: '#ef4444',
+          backgroundColor: '#ef4444',
+          pointBackgroundColor: '#ef4444',
+          borderDash: [5, 4],
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25,
+        },
+        {
+          label: 'Tx inexploitable',
+          data: txInex,
+          borderColor: '#94a3b8',
+          backgroundColor: '#94a3b8',
+          pointBackgroundColor: '#94a3b8',
+          borderDash: [5, 4],
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25,
         },
       ],
-    }),
-    [chartLabels, chartLeadsData, chartTxData],
-  )
+    }
+  }, [chartWeeks])
 
-  const chartOptions: ChartOptions<'bar' | 'line'> = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     scales: {
       y: {
         beginAtZero: true,
-        position: 'left',
-        title: { display: true, text: 'Leads' },
+        ticks: {
+          color: '#94a3b8',
+          callback: (v) => `${v}%`,
+        },
+        grid: { color: 'rgba(255,255,255,0.08)' },
       },
-      y2: {
-        beginAtZero: true,
-        position: 'right',
-        max: 60,
-        grid: { drawOnChartArea: false },
-        ticks: { callback: (v) => `${v}%` },
-        title: { display: true, text: 'Tx transfo' },
+      x: {
+        ticks: { color: '#94a3b8', font: { size: 11 } },
+        grid: { display: false },
       },
-      x: { grid: { display: false } },
     },
-    plugins: { legend: { position: 'bottom' } },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: '#cbd5e1', font: { size: 11 }, boxWidth: 12 },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)}%`,
+        },
+      },
+    },
   }
 
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
@@ -216,23 +273,31 @@ function Hebdo() {
         </p>
       </div>
 
-      {/* Graphique */}
+      {/* Graphique évolution taux */}
       <div
         style={{
-          background: '#fff',
-          border: '1px solid #e2e8f0',
+          background: '#0f1923',
+          border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 10,
-          padding: 18,
+          padding: '16px 8px 8px',
         }}
       >
-        <h3 style={{ margin: '0 0 14px', fontSize: 14 }}>
-          Évolution leads × tx transformation
-        </h3>
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: 2,
+            color: '#64748b',
+            marginLeft: 16,
+            marginBottom: 12,
+          }}
+        >
+          ÉVOLUTION HEBDOMADAIRE
+        </div>
         <div style={{ height: 280 }}>
-          {weeks.length > 0 ? (
-            <Chart type="bar" data={chartData} options={chartOptions} />
+          {chartWeeks.length > 0 ? (
+            <Chart type="line" data={chartData} options={chartOptions} />
           ) : (
-            <div style={{ color: '#94a3b8', fontSize: 13 }}>
+            <div style={{ color: '#94a3b8', fontSize: 13, padding: 16 }}>
               Aucune donnée pour cette période.
             </div>
           )}
@@ -297,15 +362,26 @@ function Hebdo() {
               >
                 <td style={{ ...td, color: '#0f172a' }}>Total</td>
                 <td style={{ ...td, color: '#0f172a' }}>{totals.leads}</td>
-                <td style={{ ...td, color: '#1D9E75' }}>{totals.contrats}</td>
-                <td style={{ ...td, color: '#378ADD' }}>{totals.enCours}</td>
-                <td style={{ ...td, color: '#BA7517' }}>{totals.nrp}</td>
-                <td style={{ ...td, color: '#A32D2D' }}>{totals.perdu}</td>
-                <td style={{ ...td, color: '#888780' }}>{totals.inexploitable}</td>
+                <td style={td}>
+                  <ValuePct value={totals.contrats} total={totals.leads} color="#1D9E75" bold />
+                </td>
+                <td style={td}>
+                  <ValuePct value={totals.enCours} total={totals.leads} color="#378ADD" />
+                </td>
+                <td style={td}>
+                  <ValuePct value={totals.nrp} total={totals.leads} color="#BA7517" />
+                </td>
+                <td style={td}>
+                  <ValuePct value={totals.perdu} total={totals.leads} color="#A32D2D" />
+                </td>
+                <td style={td}>
+                  <ValuePct value={totals.inexploitable} total={totals.leads} color="#888780" />
+                </td>
                 <td
                   style={{
                     ...td,
                     textAlign: 'right',
+                    fontWeight: 700,
                     color: txTransfoColor(totals.txTransformation),
                   }}
                 >
@@ -315,6 +391,7 @@ function Hebdo() {
                   style={{
                     ...td,
                     textAlign: 'right',
+                    fontWeight: 700,
                     color: txConvColor(totals.txConversion),
                   }}
                 >
@@ -386,11 +463,21 @@ function WeekRowsFragment({
           {weekLabel}
         </td>
         <td style={{ ...td, color: '#475569' }}>{leads}</td>
-        <td style={{ ...td, color: '#1D9E75', fontWeight: 600 }}>{contrats}</td>
-        <td style={{ ...td, color: '#378ADD' }}>{enCours}</td>
-        <td style={{ ...td, color: '#BA7517' }}>{nrp}</td>
-        <td style={{ ...td, color: '#A32D2D' }}>{perdu}</td>
-        <td style={{ ...td, color: '#888780' }}>{inexploitable}</td>
+        <td style={td}>
+          <ValuePct value={contrats} total={leads} color="#1D9E75" bold />
+        </td>
+        <td style={td}>
+          <ValuePct value={enCours} total={leads} color="#378ADD" />
+        </td>
+        <td style={td}>
+          <ValuePct value={nrp} total={leads} color="#BA7517" />
+        </td>
+        <td style={td}>
+          <ValuePct value={perdu} total={leads} color="#A32D2D" />
+        </td>
+        <td style={td}>
+          <ValuePct value={inexploitable} total={leads} color="#888780" />
+        </td>
         <td
           style={{
             ...td,
@@ -432,10 +519,8 @@ function WeekRowsFragment({
           ) : (
             drillDays.map((d) => {
               const pipe = d.contrats + d.enCours
-              const txT =
-                d.leads > 0 ? (d.contrats / d.leads) * 100 : 0
-              const txC =
-                pipe > 0 ? (d.contrats / pipe) * 100 : 0
+              const txT = d.leads > 0 ? (d.contrats / d.leads) * 100 : 0
+              const txC = pipe > 0 ? (d.contrats / pipe) * 100 : 0
               return (
                 <tr
                   key={`${weekKey}-${d.dateKey}`}
@@ -444,12 +529,7 @@ function WeekRowsFragment({
                     borderTop: '1px solid #f1f5f9',
                   }}
                 >
-                  <td
-                    style={{
-                      ...tdSub,
-                      paddingLeft: 32,
-                    }}
-                  >
+                  <td style={{ ...tdSub, paddingLeft: 32 }}>
                     <span
                       style={{
                         fontSize: 11,
@@ -465,14 +545,20 @@ function WeekRowsFragment({
                     </span>
                   </td>
                   <td style={{ ...tdSub, color: '#94a3b8' }}>{d.leads}</td>
-                  <td style={{ ...tdSub, color: '#1D9E75', fontWeight: 600 }}>
-                    {d.contrats}
+                  <td style={tdSub}>
+                    <ValuePct value={d.contrats} total={d.leads} color="#1D9E75" bold />
                   </td>
-                  <td style={{ ...tdSub, color: '#378ADD' }}>{d.enCours}</td>
-                  <td style={{ ...tdSub, color: '#BA7517' }}>{d.nrp}</td>
-                  <td style={{ ...tdSub, color: '#A32D2D' }}>{d.perdu}</td>
-                  <td style={{ ...tdSub, color: '#888780' }}>
-                    {d.inexploitable}
+                  <td style={tdSub}>
+                    <ValuePct value={d.enCours} total={d.leads} color="#378ADD" />
+                  </td>
+                  <td style={tdSub}>
+                    <ValuePct value={d.nrp} total={d.leads} color="#BA7517" />
+                  </td>
+                  <td style={tdSub}>
+                    <ValuePct value={d.perdu} total={d.leads} color="#A32D2D" />
+                  </td>
+                  <td style={tdSub}>
+                    <ValuePct value={d.inexploitable} total={d.leads} color="#888780" />
                   </td>
                   <td
                     style={{
