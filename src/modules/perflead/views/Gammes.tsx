@@ -95,11 +95,16 @@ function Gammes() {
           backgroundColor: '#1D9E75',
           borderRadius: 4,
           yAxisID: 'y',
+          order: 2,
         },
         {
           type: 'line',
           label: 'PM moyen (€)',
-          data: top8Compagnies.map((g) => Math.round(g.pmMoyen)),
+          // Null au lieu de 0 quand PM inconnu → la courbe ne retombe pas
+          // à zéro sur ces points (évite le faux "désalignement" visuel)
+          data: top8Compagnies.map((g) =>
+            g.pmMoyen > 0 ? Math.round(g.pmMoyen) : null,
+          ),
           borderColor: '#BA7517',
           backgroundColor: 'transparent',
           pointBackgroundColor: '#BA7517',
@@ -107,6 +112,8 @@ function Gammes() {
           pointRadius: 4,
           yAxisID: 'y2',
           tension: 0.3,
+          spanGaps: true,
+          order: 1,
         },
       ],
     }),
@@ -118,12 +125,19 @@ function Gammes() {
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     scales: {
-      y: { beginAtZero: true },
+      y: {
+        type: 'linear',
+        position: 'left',
+        beginAtZero: true,
+        title: { display: true, text: 'Nb contrats' },
+      },
       y2: {
+        type: 'linear',
         position: 'right',
         beginAtZero: true,
         grid: { drawOnChartArea: false },
         ticks: { callback: (v) => `${v}€` },
+        title: { display: true, text: 'PM moyen' },
       },
       x: { grid: { display: false } },
     },

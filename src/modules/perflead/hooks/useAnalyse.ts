@@ -31,8 +31,8 @@ export function getDept(codePostal: string | null): string | null {
   return cp.slice(0, 2)
 }
 
-const MIN_LEADS_DEPT = 5
-const MAX_DEPTS = 30
+// Renvoie TOUS les départements présents dans les leads (pas de filtre min,
+// pas de limite). Le composant consommateur décide du tri/affichage.
 
 // ── Hook ──────────────────────────────────────────────────────
 export function useAnalyse(
@@ -113,7 +113,6 @@ export function useAnalyse(
     }
 
     const depts: DeptStats[] = Array.from(byDept.entries())
-      .filter(([, b]) => b.total >= MIN_LEADS_DEPT)
       .map(([dept, b]) => {
         const pmMoyen = b.pmVals.length
           ? b.pmVals.reduce((a, x) => a + x, 0) / b.pmVals.length
@@ -131,7 +130,6 @@ export function useAnalyse(
         }
       })
       .sort((a, b) => b.total - a.total)
-      .slice(0, MAX_DEPTS)
 
     return {
       fixe,

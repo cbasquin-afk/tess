@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, startOfMonth, subMonths, endOfMonth } from 'date-fns'
+import {
+  ArcElement,
+  Chart as ChartJS,
+  Legend,
+  Tooltip,
+  type ChartData,
+  type ChartOptions,
+} from 'chart.js'
+import { Doughnut } from 'react-chartjs-2'
 import { fetchContratsByPeriod, fetchLeadsByPeriod } from '../api'
 import { useStats } from '../hooks/useStats'
 import { useAnalyse } from '../hooks/useAnalyse'
@@ -10,6 +19,8 @@ import type {
   Lead,
   TelGroupStats,
 } from '../types'
+
+ChartJS.register(ArcElement, Tooltip, Legend)
 
 type Mode = 'simple' | 'compare'
 type DeptSortKey = keyof Pick<
@@ -36,6 +47,24 @@ function defaultPeriods(): { a: Period; b: Period } {
     },
   }
 }
+
+// ── Palette pour le camembert ────────────────────────────────
+const PIE_COLORS = [
+  '#378ADD',
+  '#1D9E75',
+  '#BA7517',
+  '#A32D2D',
+  '#6366f1',
+  '#ec4899',
+  '#14b8a6',
+  '#f59e0b',
+  '#8b5cf6',
+  '#06b6d4',
+  '#84cc16',
+  '#f43f5e',
+] as const
+const PIE_AUTRES_COLOR = '#94a3b8'
+const PIE_THRESHOLD_PCT = 1
 
 // ── Hook : fetch d'une période externe ───────────────────────
 function usePeriodFetch(period: Period | null) {
@@ -83,7 +112,6 @@ function txTransfoColor(tx: number): string {
 }
 
 function txTransfoColorAlt(tx: number): string {
-  // Variante plus permissive pour la section Fixe/Mobile (≥12 vert)
   if (tx >= 12) return '#1D9E75'
   if (tx >= 8) return '#BA7517'
   return '#E24B4A'
@@ -114,7 +142,6 @@ function Analyse() {
   const [sortKey, setSortKey] = useState<DeptSortKey>('total')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
-  // Mode simple : données de la FilterBar
   const {
     leads: leadsCurrent,
     contrats: contratsCurrent,
@@ -122,7 +149,6 @@ function Analyse() {
     error: errorCurrent,
   } = useStats()
 
-  // Mode compare : fetch direct des deux périodes
   const dataA = usePeriodFetch(mode === 'compare' ? periodA : null)
   const dataB = usePeriodFetch(mode === 'compare' ? periodB : null)
 
@@ -140,24 +166,20 @@ function Analyse() {
   }
 
   const loading =
-    mode === 'simple'
-      ? loadingCurrent
-      : dataA.loading || dataB.loading
+    mode === 'simple' ? loadingCurrent : dataA.loading || dataB.loading
   const error =
-    mode === 'simple'
-      ? errorCurrent
-      : (dataA.error ?? dataB.error)
+    mode === 'simple' ? errorCurrent : (dataA.error ?? dataB.error)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Analyse</h1>
+        <h1 style={{ margin: 0, fontSize: 24 }}>Analyse leads</h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Joignabilité par type de numéro et performance par département.
+          Joignabilité par type de numéro et cartographie départementale.
         </p>
       </div>
 
-      {/* Sélecteur de mode + pickers */}
+      {/* Mode simple/compare */}
       <div
         style={{
           background: '#fff',
@@ -195,7 +217,7 @@ function Analyse() {
                   color: active ? '#fff' : '#64748b',
                 }}
               >
-                {m === 'simple' ? 'Période seule' : 'Comparer A vs B'}
+                {m === 'simple' ? 'Vue simple' : 'Comparatif A vs B'}
               </button>
             )
           })}
@@ -233,13 +255,15 @@ function Analyse() {
         <div style={{ color: '#64748b', fontSize: 13 }}>Chargement…</div>
       )}
 
-      {/* Section A — Fixe vs Mobile */}
+      {/* Section 1 — Fixe vs Mobile */}
       <div>
-        <h2 style={{ margin: '0 0 4px', fontSize: 16 }}>
-          Fixe vs Mobile
-        </h2>
+        <h2 style={{ margin: '0 0 4px', fontSize: 16 }}>Fixe vs Mobile</h2>
         <p style={{ color: '#94a3b8', margin: '0 0 12px', fontSize: 12 }}>
-          Joignabilité par type de numéro de téléphone.
+          Joignabilité par type de numéro de téléphone —{' '}
+          {mode === 'simple'
+            ? `${fmt(analyseSimple.fixe.count + analyseSimple.mobile.count)} / ${fmt(analyseSimple.totalLeads)} leads avec téléphone`
+            : 'comparaison A vs B'}
+          .
         </p>
 
         {mode === 'simple' ? (
@@ -267,46 +291,35 @@ function Analyse() {
         )}
       </div>
 
-      {/* Section B — Cartographie départementale */}
+      {/* Section 2 — Volume & taux par département */}
       <div>
         <h2 style={{ margin: '0 0 4px', fontSize: 16 }}>
-          Cartographie départementale
+          Volume & taux par département
         </h2>
         <p style={{ color: '#94a3b8', margin: '0 0 12px', fontSize: 12 }}>
-          Top {30} départements (≥ 5 leads). Cliquer sur une colonne pour
-          trier.
+          {mode === 'simple'
+            ? `${analyseSimple.depts.length} départements · cliquer sur une colonne pour trier.`
+            : 'Comparaison département par département entre les deux périodes.'}
         </p>
 
         {mode === 'simple' ? (
-          <DeptTable
-            depts={analyseSimple.depts}
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onToggleSort={toggleSort}
-          />
-        ) : (
           <div
-            style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)',
+              gap: 16,
+            }}
           >
-            <div>
-              <PeriodLabel label="Période A" color="#378ADD" />
-              <DeptTable
-                depts={analyseA.depts}
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onToggleSort={toggleSort}
-              />
-            </div>
-            <div>
-              <PeriodLabel label="Période B" color="#BA7517" />
-              <DeptTable
-                depts={analyseB.depts}
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onToggleSort={toggleSort}
-              />
-            </div>
+            <DeptTable
+              depts={analyseSimple.depts}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={toggleSort}
+            />
+            <DeptPie depts={analyseSimple.depts} />
           </div>
+        ) : (
+          <CompareTable analyseA={analyseA} analyseB={analyseB} />
         )}
       </div>
     </div>
@@ -455,7 +468,6 @@ function TelCard({ group }: { group: TelGroupStats }) {
 }
 
 function Insight({ analyse }: { analyse: AnalyseResult }) {
-  // Compare fixe et mobile (ignore inconnu)
   const f = analyse.fixe
   const m = analyse.mobile
   if (f.count === 0 || m.count === 0) return null
@@ -498,6 +510,11 @@ interface DeptTableProps {
 }
 
 function DeptTable({ depts, sortKey, sortDir, onToggleSort }: DeptTableProps) {
+  const maxLeads = useMemo(
+    () => depts.reduce((m, d) => (d.total > m ? d.total : m), 0),
+    [depts],
+  )
+
   const sorted = useMemo(() => {
     const arr = [...depts]
     arr.sort((a, b) => {
@@ -524,7 +541,7 @@ function DeptTable({ depts, sortKey, sortDir, onToggleSort }: DeptTableProps) {
           fontStyle: 'italic',
         }}
       >
-        Aucun département avec ≥ 5 leads sur la période.
+        Aucun département sur la période.
       </div>
     )
   }
@@ -537,6 +554,8 @@ function DeptTable({ depts, sortKey, sortDir, onToggleSort }: DeptTableProps) {
         borderRadius: 10,
         padding: 18,
         overflowX: 'auto',
+        maxHeight: 560,
+        overflowY: 'auto',
       }}
     >
       <table
@@ -557,7 +576,6 @@ function DeptTable({ depts, sortKey, sortDir, onToggleSort }: DeptTableProps) {
               sortKey={sortKey}
               sortDir={sortDir}
               onToggle={onToggleSort}
-              right
             />
             <SortableTh
               k="partLeads"
@@ -599,8 +617,8 @@ function DeptTable({ depts, sortKey, sortDir, onToggleSort }: DeptTableProps) {
               <td style={{ ...td, fontWeight: 700, color: '#0f172a' }}>
                 {d.dept}
               </td>
-              <td style={{ ...td, textAlign: 'right', color: '#378ADD' }}>
-                {fmt(d.total)}
+              <td style={td}>
+                <DeptBar value={d.total} max={maxLeads} />
               </td>
               <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>
                 {d.partLeads.toFixed(1)}%
@@ -643,6 +661,384 @@ function DeptTable({ depts, sortKey, sortDir, onToggleSort }: DeptTableProps) {
   )
 }
 
+// Barre progress inline (colonne LEADS)
+function DeptBar({ value, max }: { value: number; max: number }) {
+  const pct = max > 0 ? (value / max) * 100 : 0
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        minWidth: 120,
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          height: 8,
+          background: '#1e293b',
+          borderRadius: 4,
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: '#3b82f6',
+            borderRadius: 4,
+          }}
+        />
+      </div>
+      <span
+        style={{
+          minWidth: 32,
+          textAlign: 'right',
+          color: '#378ADD',
+          fontWeight: 600,
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 12,
+        }}
+      >
+        {fmt(value)}
+      </span>
+    </div>
+  )
+}
+
+// Camembert des départements avec "Autres" regroupés
+function DeptPie({ depts }: { depts: DeptStats[] }) {
+  const { slices, totalLeads } = useMemo(() => {
+    const total = depts.reduce((s, d) => s + d.total, 0)
+    if (total === 0) return { slices: [], totalLeads: 0 }
+    const threshold = (total * PIE_THRESHOLD_PCT) / 100
+    const top: { label: string; value: number; color: string }[] = []
+    let autresVal = 0
+    let colorIdx = 0
+    for (const d of depts) {
+      if (d.total >= threshold && colorIdx < PIE_COLORS.length) {
+        top.push({
+          label: d.dept,
+          value: d.total,
+          color: PIE_COLORS[colorIdx]!,
+        })
+        colorIdx += 1
+      } else {
+        autresVal += d.total
+      }
+    }
+    if (autresVal > 0) {
+      top.push({ label: 'Autres', value: autresVal, color: PIE_AUTRES_COLOR })
+    }
+    return { slices: top, totalLeads: total }
+  }, [depts])
+
+  const chartData: ChartData<'doughnut'> = useMemo(
+    () => ({
+      labels: slices.map((s) => s.label),
+      datasets: [
+        {
+          data: slices.map((s) => s.value),
+          backgroundColor: slices.map((s) => s.color),
+          borderWidth: 1,
+          borderColor: '#fff',
+        },
+      ],
+    }),
+    [slices],
+  )
+
+  const chartOptions: ChartOptions<'doughnut'> = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            boxWidth: 10,
+            font: { size: 11 },
+            generateLabels: (chart) => {
+              const data = chart.data
+              if (!data.labels || !data.datasets[0]) return []
+              const ds = data.datasets[0]
+              const bgs = ds.backgroundColor as string[]
+              return data.labels.map((lbl, i) => {
+                const val = (ds.data as number[])[i] ?? 0
+                const pct = totalLeads > 0 ? (val / totalLeads) * 100 : 0
+                return {
+                  text: `${lbl} ${pct.toFixed(1)}%`,
+                  fillStyle: bgs[i] ?? '#94a3b8',
+                  strokeStyle: bgs[i] ?? '#94a3b8',
+                  lineWidth: 0,
+                  index: i,
+                }
+              })
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const val = Number(ctx.parsed)
+              const pct = totalLeads > 0 ? (val / totalLeads) * 100 : 0
+              return `${ctx.label}: ${fmt(val)} (${pct.toFixed(1)}%)`
+            },
+          },
+        },
+      },
+    }),
+    [totalLeads],
+  )
+
+  if (slices.length === 0) {
+    return (
+      <div
+        style={{
+          background: '#fff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          padding: 18,
+          color: '#94a3b8',
+          fontSize: 13,
+          fontStyle: 'italic',
+        }}
+      >
+        Aucune donnée.
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 10,
+        padding: 18,
+      }}
+    >
+      <h3 style={{ margin: '0 0 8px', fontSize: 13, color: '#475569' }}>
+        Répartition
+      </h3>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>
+        Départements &lt; {PIE_THRESHOLD_PCT}% regroupés en « Autres ».
+      </div>
+      <div style={{ height: 320 }}>
+        <Doughnut data={chartData} options={chartOptions} />
+      </div>
+    </div>
+  )
+}
+
+// Vue compare : tableau combiné avec deltas
+function CompareTable({
+  analyseA,
+  analyseB,
+}: {
+  analyseA: AnalyseResult
+  analyseB: AnalyseResult
+}) {
+  const combined = useMemo(() => {
+    const mapA = new Map(analyseA.depts.map((d) => [d.dept, d]))
+    const mapB = new Map(analyseB.depts.map((d) => [d.dept, d]))
+    const all = new Set<string>([...mapA.keys(), ...mapB.keys()])
+    return Array.from(all)
+      .map((dept) => ({
+        dept,
+        a: mapA.get(dept) ?? null,
+        b: mapB.get(dept) ?? null,
+      }))
+      .sort((x, y) => (y.a?.total ?? 0) - (x.a?.total ?? 0))
+  }, [analyseA.depts, analyseB.depts])
+
+  if (combined.length === 0) {
+    return (
+      <div
+        style={{
+          background: '#fff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          padding: 18,
+          color: '#94a3b8',
+          fontSize: 13,
+          fontStyle: 'italic',
+        }}
+      >
+        Aucun département sur les deux périodes.
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 10,
+        padding: 18,
+        overflowX: 'auto',
+      }}
+    >
+      <table
+        style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
+      >
+        <thead>
+          <tr style={{ color: '#64748b', fontSize: 11, fontWeight: 600 }}>
+            <th style={th}>Dépt.</th>
+            <th style={{ ...th, color: '#378ADD' }}>Leads A</th>
+            <th style={{ ...th, color: '#378ADD', textAlign: 'right' }}>
+              Tx déc. A
+            </th>
+            <th style={{ ...th, color: '#378ADD', textAlign: 'right' }}>
+              Tx transfo A
+            </th>
+            <th style={{ ...th, color: '#378ADD', textAlign: 'right' }}>
+              PM A
+            </th>
+            <th style={{ ...th, textAlign: 'center' }}>Δ</th>
+            <th style={{ ...th, color: '#BA7517' }}>Leads B</th>
+            <th style={{ ...th, color: '#BA7517', textAlign: 'right' }}>
+              Tx déc. B
+            </th>
+            <th style={{ ...th, color: '#BA7517', textAlign: 'right' }}>
+              Tx transfo B
+            </th>
+            <th style={{ ...th, color: '#BA7517', textAlign: 'right' }}>
+              PM B
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {combined.map(({ dept, a, b }) => (
+            <tr key={dept} style={{ borderTop: '1px solid #f1f5f9' }}>
+              <td style={{ ...td, fontWeight: 700, color: '#0f172a' }}>
+                {dept}
+              </td>
+              {/* A */}
+              <td style={{ ...td, color: '#378ADD' }}>
+                {a ? fmt(a.total) : '—'}
+              </td>
+              <td
+                style={{
+                  ...td,
+                  textAlign: 'right',
+                  color: a ? txDecrochesColor(a.txDecroches) : '#cbd5e1',
+                }}
+              >
+                {a ? `${a.txDecroches.toFixed(1)}%` : '—'}
+              </td>
+              <td
+                style={{
+                  ...td,
+                  textAlign: 'right',
+                  color: a ? txTransfoColor(a.txTransfo) : '#cbd5e1',
+                  fontWeight: 600,
+                }}
+              >
+                {a ? `${a.txTransfo.toFixed(1)}%` : '—'}
+              </td>
+              <td
+                style={{
+                  ...td,
+                  textAlign: 'right',
+                  color: a ? pmColor(a.pmMoyen) : '#cbd5e1',
+                }}
+              >
+                {a && a.pmMoyen > 0 ? `${a.pmMoyen.toFixed(0)}€` : '—'}
+              </td>
+              {/* Deltas */}
+              <td
+                style={{
+                  ...td,
+                  textAlign: 'center',
+                  fontSize: 11,
+                  color: '#64748b',
+                }}
+              >
+                <Deltas a={a} b={b} />
+              </td>
+              {/* B */}
+              <td style={{ ...td, color: '#BA7517' }}>
+                {b ? fmt(b.total) : '—'}
+              </td>
+              <td
+                style={{
+                  ...td,
+                  textAlign: 'right',
+                  color: b ? txDecrochesColor(b.txDecroches) : '#cbd5e1',
+                }}
+              >
+                {b ? `${b.txDecroches.toFixed(1)}%` : '—'}
+              </td>
+              <td
+                style={{
+                  ...td,
+                  textAlign: 'right',
+                  color: b ? txTransfoColor(b.txTransfo) : '#cbd5e1',
+                  fontWeight: 600,
+                }}
+              >
+                {b ? `${b.txTransfo.toFixed(1)}%` : '—'}
+              </td>
+              <td
+                style={{
+                  ...td,
+                  textAlign: 'right',
+                  color: b ? pmColor(b.pmMoyen) : '#cbd5e1',
+                }}
+              >
+                {b && b.pmMoyen > 0 ? `${b.pmMoyen.toFixed(0)}€` : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function Deltas({ a, b }: { a: DeptStats | null; b: DeptStats | null }) {
+  if (!a || !b) {
+    return <span style={{ color: '#cbd5e1' }}>—</span>
+  }
+  const dDec = a.txDecroches - b.txDecroches
+  const dTx = a.txTransfo - b.txTransfo
+  const dPm = a.pmMoyen - b.pmMoyen
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <DeltaValue label="déc." value={dDec} suffix="pts" />
+      <DeltaValue label="tx" value={dTx} suffix="pts" />
+      <DeltaValue label="pm" value={dPm} suffix="€" />
+    </div>
+  )
+}
+
+function DeltaValue({
+  label,
+  value,
+  suffix,
+}: {
+  label: string
+  value: number
+  suffix: string
+}) {
+  if (Math.abs(value) < 0.1) {
+    return <span style={{ color: '#94a3b8', fontSize: 10 }}>= {label}</span>
+  }
+  const up = value > 0
+  const arrow = up ? '↑' : '↓'
+  const color = up ? '#1D9E75' : '#E24B4A'
+  return (
+    <span style={{ color, fontSize: 10, fontWeight: 600 }}>
+      {arrow} {Math.abs(value).toFixed(1)}
+      {suffix} {label}
+    </span>
+  )
+}
+
 interface SortableThProps {
   k: DeptSortKey
   label: string
@@ -669,6 +1065,9 @@ function SortableTh({
         cursor: 'pointer',
         userSelect: 'none',
         color: active ? '#0f172a' : '#64748b',
+        position: 'sticky',
+        top: 0,
+        background: '#fff',
       }}
       onClick={() => onToggle(k)}
     >
@@ -682,6 +1081,11 @@ function SortableTh({
   )
 }
 
+const th: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '8px 12px 8px 0',
+  borderBottom: '1px solid #e5e7eb',
+}
 const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
 
 const dateInputStyle: React.CSSProperties = {
