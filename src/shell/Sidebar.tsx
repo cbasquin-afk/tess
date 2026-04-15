@@ -15,35 +15,35 @@ const PERFLEAD_GROUPS: readonly PerfLeadGroup[] = [
   {
     label: 'DASHBOARD',
     links: [
-      { path: '/perflead', label: 'Vue générale' },
-      { path: '/perflead/hebdo', label: 'Hebdomadaire' },
+      { path: '/perflead', label: '📊 Vue générale' },
+      { path: '/perflead/hebdomadaire', label: '📅 Hebdomadaire' },
+      { path: '/perflead/commerciaux', label: '👥 Commerciaux' },
     ],
   },
   {
     label: 'ANALYSE',
     links: [
-      { path: '/perflead/contrats', label: 'Contrats & PM' },
-      { path: '/perflead/gammes', label: 'Gammes & Niveaux' },
-      { path: '/perflead/ages', label: "Tranches d'âge" },
-      { path: '/perflead/commerciaux', label: 'Commerciaux' },
-      { path: '/perflead/entonnoir', label: 'Entonnoir' },
-      { path: '/perflead/analyse', label: 'Analyse périodes' },
+      { path: '/perflead/analyse-leads', label: '🔍 Analyse leads' },
+      { path: '/perflead/contrats', label: '💸 Contrats & PM' },
+      { path: '/perflead/gammes', label: '📋 Gammes & Niveaux' },
+      { path: '/perflead/tranches-age', label: "🎂 Tranches d'âge" },
     ],
   },
   {
     label: 'PIPELINE',
     links: [
-      { path: '/perflead/pipeline', label: 'Pipeline actif' },
-      { path: '/perflead/statuts', label: 'Statuts détaillés' },
+      { path: '/perflead/pipeline', label: '🔥 Pipeline actif' },
+      { path: '/perflead/statuts', label: '📊 Statuts détaillés' },
       { path: '/perflead/alertes', label: '🔔 Alertes' },
     ],
   },
   {
     label: 'OUTILS',
     links: [
-      { path: '/perflead/personae', label: 'Personae' },
-      { path: '/perflead/fournisseur', label: 'Fournisseur' },
-      { path: '/perflead/import', label: 'Import CRM' },
+      { path: '/perflead/personae', label: '🎯 Personae' },
+      { path: '/admin', label: '📦 TessAdmin' },
+      { path: '/perflead/fournisseur', label: '📨 Fournisseur' },
+      { path: '/perflead/import', label: '📤 Import CRM' },
     ],
   },
 ] as const

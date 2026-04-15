@@ -39,9 +39,12 @@ function PerfLeadModule() {
             <Route path="commerciaux" element={<Commerciaux />} />
             <Route path="contrats" element={<Contrats />} />
             <Route path="hebdo" element={<Hebdo />} />
+            <Route path="hebdomadaire" element={<Hebdo />} />
             <Route path="analyse" element={<Analyse />} />
+            <Route path="analyse-leads" element={<Analyse />} />
             <Route path="gammes" element={<Gammes />} />
             <Route path="ages" element={<Ages />} />
+            <Route path="tranches-age" element={<Ages />} />
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="entonnoir" element={<Entonnoir />} />
             <Route path="statuts" element={<Statuts />} />
