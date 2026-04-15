@@ -59,6 +59,11 @@ const ADMIN_LINKS = [
   { path: '/admin/frais', label: '💰 Frais de service' },
 ] as const
 
+const ANNUAIRE_LINKS = [
+  { path: '/annuaire', label: '📋 Toutes les fiches' },
+  { path: '/annuaire/alertes', label: '⚠️ Alertes' },
+] as const
+
 const FINANCES_LINKS = [
   { path: '/finances', label: '📊 Dashboard' },
   { path: '/finances/ca', label: '📈 Commissions mensuelles' },
@@ -75,7 +80,10 @@ const FINANCES_LINKS = [
 // modules en gagnent une plus tard, on pourra mapper par path.
 function hasSublinks(m: ModuleConfig): boolean {
   return (
-    m.path === '/perflead' || m.path === '/admin' || m.path === '/finances'
+    m.path === '/perflead' ||
+    m.path === '/admin' ||
+    m.path === '/finances' ||
+    m.path === '/annuaire'
   )
 }
 
@@ -366,6 +374,33 @@ export function Sidebar() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {isOpen && m.path === '/annuaire' && (
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    {ANNUAIRE_LINKS.map((sl) => {
+                      const slActive = location.pathname === sl.path
+                      return (
+                        <Link
+                          key={sl.path}
+                          to={sl.path}
+                          style={{
+                            display: 'block',
+                            padding: '7px 12px 7px 20px',
+                            borderRadius: 5,
+                            color: slActive ? '#fff' : '#94a3b8',
+                            background: slActive ? '#1e293b' : 'transparent',
+                            textDecoration: 'none',
+                            fontSize: 12,
+                            fontWeight: slActive ? 600 : 400,
+                            marginBottom: 1,
+                          }}
+                        >
+                          {sl.label}
+                        </Link>
+                      )
+                    })}
                   </div>
                 )}
 

@@ -34,6 +34,14 @@ export const MODULES: ModuleConfig[] = [
     loader: () => import('../modules/finances'),
   },
   {
+    id: 'annuaire',
+    label: 'TessAnnuaire',
+    icon: '📚',
+    path: '/annuaire',
+    minRole: 'admin',
+    loader: () => import('../modules/annuaire'),
+  },
+  {
     id: 'partenaires',
     label: 'Partenaires',
     icon: '🤝',
