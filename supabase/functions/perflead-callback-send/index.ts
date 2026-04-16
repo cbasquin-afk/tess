@@ -1,17 +1,11 @@
 // Edge Function : envoie des statuts leads vers le webhook Mapapp (n8n).
-// Body : { lead_ids: string[] } — chaque lead_id est un identifiant_projet
-// (converti en string).
-//
-// Logique :
-//   1. Récupérer les leads (identifiant_projet, email, statut)
-//   2. Pour chacun : mapper statut → statut_mapapp via callback_statut_map
-//   3. Si mapping : POST sur le webhook, logger dans callback_log
-//   4. Sinon : skip (pas de log HTTP)
+// Body : { lead_ids: string[] } — leadbyte_id (text) ou identifiant_projet
+// converti en string. Deux queries .in() chunkées (pour éviter URL trop longue).
 
-// @ts-nocheck — Deno runtime, pas de résolution TS locale
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const WEBHOOK_URL = 'https://mapapp.app.n8n.cloud/webhook/tessoria-callback'
+const CHUNK_SIZE = 200
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +36,12 @@ interface MappingRow {
   actif: boolean
 }
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS })
@@ -59,10 +59,7 @@ Deno.serve(async (req) => {
     if (!Array.isArray(lead_ids) || lead_ids.length === 0) {
       return new Response(
         JSON.stringify({ error: 'lead_ids doit être un tableau non vide' }),
-        {
-          status: 400,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        },
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       )
     }
 
@@ -71,10 +68,7 @@ Deno.serve(async (req) => {
     if (!supabaseUrl || !serviceRoleKey) {
       return new Response(
         JSON.stringify({ error: 'Configuration Supabase manquante' }),
-        {
-          status: 500,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        },
+        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       )
     }
 
@@ -82,66 +76,59 @@ Deno.serve(async (req) => {
       auth: { persistSession: false },
     })
 
-    // Les lead_ids peuvent arriver en string (UI) ou number — convertir tous
-    // en number pour le filtre SQL sur identifiant_projet (bigint)
-    // Les lead_ids peuvent être des leadbyte_id (text) OU des
-    // identifiant_projet convertis en string. On les normalise et on
-    // interroge par les DEUX colonnes via un OR.
     const idStrings = lead_ids
       .map((id: unknown) => (typeof id === 'string' ? id : String(id ?? '')))
-      .filter((s) => s.length > 0)
+      .filter((s: string) => s.length > 0)
 
     if (idStrings.length === 0) {
       return new Response(
-        JSON.stringify({
-          sent: 0,
-          skipped: 0,
-          errors: 0,
-          details: [],
-          error: 'Aucun lead_id valide',
-        }),
-        {
-          status: 400,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        },
+        JSON.stringify({ sent: 0, skipped: 0, errors: 0, details: [], error: 'Aucun lead_id valide' }),
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       )
     }
 
-    // Candidats identifiant_projet : ceux qui sont convertibles en entier
     const numericIds = idStrings
-      .map((s) => Number(s))
-      .filter((n) => Number.isFinite(n) && n > 0 && Number.isInteger(n))
+      .map((s: string) => Number(s))
+      .filter((n: number) => Number.isFinite(n) && n > 0 && Number.isInteger(n))
 
-    // 1. Fetch leads — OR sur leadbyte_id et identifiant_projet
-    let query = supabase
-      .from('perflead_leads')
-      .select('identifiant_projet, leadbyte_id, email, statut')
+    // Deux queries distinctes, chunkées. Les leads correspondant soit par
+    // leadbyte_id, soit par identifiant_projet, sont collectés puis dédupliqués.
+    const leadsMap = new Map<number, LeadRow>() // key = identifiant_projet
 
-    const inLeadbyte = idStrings.map((s) => `"${s}"`).join(',')
-    const inProjet = numericIds.join(',')
-    if (numericIds.length > 0) {
-      query = query.or(
-        `leadbyte_id.in.(${inLeadbyte}),identifiant_projet.in.(${inProjet})`,
-      )
-    } else {
-      query = query.in('leadbyte_id', idStrings)
+    for (const c of chunk(idStrings, CHUNK_SIZE)) {
+      const { data, error } = await supabase
+        .from('perflead_leads')
+        .select('identifiant_projet, leadbyte_id, email, statut')
+        .in('leadbyte_id', c)
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: `fetch leads (leadbyte): ${error.message}` }),
+          { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+        )
+      }
+      for (const row of (data ?? []) as LeadRow[]) {
+        if (row.identifiant_projet != null) leadsMap.set(row.identifiant_projet, row)
+      }
     }
 
-    const { data: leadsData, error: eLeads } = await query
-
-    if (eLeads) {
-      return new Response(
-        JSON.stringify({ error: `fetch leads: ${eLeads.message}` }),
-        {
-          status: 500,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        },
-      )
+    for (const c of chunk(numericIds, CHUNK_SIZE)) {
+      const { data, error } = await supabase
+        .from('perflead_leads')
+        .select('identifiant_projet, leadbyte_id, email, statut')
+        .in('identifiant_projet', c)
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: `fetch leads (projet): ${error.message}` }),
+          { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+        )
+      }
+      for (const row of (data ?? []) as LeadRow[]) {
+        if (row.identifiant_projet != null) leadsMap.set(row.identifiant_projet, row)
+      }
     }
 
-    const leads = (leadsData ?? []) as LeadRow[]
+    const leads = Array.from(leadsMap.values())
 
-    // 2. Fetch mapping
     const { data: mapData, error: eMap } = await supabase
       .from('callback_statut_map')
       .select('statut_interne, statut_mapapp, actif')
@@ -150,10 +137,7 @@ Deno.serve(async (req) => {
     if (eMap) {
       return new Response(
         JSON.stringify({ error: `fetch mapping: ${eMap.message}` }),
-        {
-          status: 500,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        },
+        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       )
     }
 
@@ -162,17 +146,12 @@ Deno.serve(async (req) => {
       mapping.set(m.statut_interne, m.statut_mapapp)
     }
 
-    // 3. Construire les payloads (avec ou sans mapping)
     const conversionDate = new Date().toISOString()
     const tasks = leads.map(async (lead): Promise<CallbackResult> => {
-      // Préférer leadbyte_id (identifiant natif Mapapp) ; fallback sur
-      // identifiant_projet si absent.
-      const leadIdStr =
-        lead.leadbyte_id ?? String(lead.identifiant_projet ?? '')
+      const leadIdStr = lead.leadbyte_id ?? String(lead.identifiant_projet ?? '')
       const statutInterne = lead.statut ?? ''
       const statutMapapp = mapping.get(statutInterne) ?? null
 
-      // Pas de mapping → skip, log sans HTTP
       if (!statutMapapp) {
         await supabase.from('callback_log').insert({
           lead_id: leadIdStr,
@@ -210,15 +189,19 @@ Deno.serve(async (req) => {
         httpStatus = res.status
         try {
           const txt = await res.text()
-          reponse = txt ? (() => { try { return JSON.parse(txt) } catch { return { raw: txt } } })() : null
+          if (txt) {
+            try {
+              reponse = JSON.parse(txt)
+            } catch {
+              reponse = { raw: txt }
+            }
+          }
         } catch {
           reponse = null
         }
       } catch (err) {
         httpStatus = null
-        reponse = {
-          error: err instanceof Error ? err.message : String(err),
-        }
+        reponse = { error: err instanceof Error ? err.message : String(err) }
       }
 
       await supabase.from('callback_log').insert({
@@ -249,7 +232,11 @@ Deno.serve(async (req) => {
       if (s.status === 'fulfilled') {
         details.push(s.value)
         if (s.value.skipped) skipped += 1
-        else if (s.value.http_status !== null && s.value.http_status >= 200 && s.value.http_status < 300) {
+        else if (
+          s.value.http_status !== null &&
+          s.value.http_status >= 200 &&
+          s.value.http_status < 300
+        ) {
           sent += 1
         } else {
           errors += 1
@@ -259,22 +246,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ sent, skipped, errors, details }),
-      {
-        status: 200,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      },
-    )
+    return new Response(JSON.stringify({ sent, skipped, errors, details }), {
+      status: 200,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    })
   } catch (err) {
     return new Response(
-      JSON.stringify({
-        error: err instanceof Error ? err.message : String(err),
-      }),
-      {
-        status: 500,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      },
+      JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
     )
   }
 })
