@@ -630,12 +630,44 @@ function MapappCallbackSection() {
     if (selected.size === 0) return
     setSending(true)
     try {
+      const lead_ids = Array.from(selected)
+      console.info('[callback] invoke start — payload:', { lead_ids })
       const { data, error: err } =
         await supabase.functions.invoke<CallbackSummary>(
           'perflead-callback-send',
-          { body: { lead_ids: Array.from(selected) } },
+          { body: { lead_ids } },
         )
-      if (err) throw new Error(err.message)
+      console.info('[callback] raw response — data:', data, 'error:', err)
+
+      if (err) {
+        console.error('[callback] raw error:', err)
+        console.error('[callback] error type:', typeof err)
+        if (err && typeof err === 'object') {
+          console.error('[callback] error keys:', Object.keys(err))
+          try {
+            console.error('[callback] error JSON:', JSON.stringify(err))
+          } catch {
+            console.error('[callback] error non-serializable')
+          }
+          const anyErr = err as {
+            context?: Response | { status?: number; statusText?: string; url?: string }
+          }
+          if (anyErr.context) {
+            console.error('[callback] error.context:', anyErr.context)
+            const maybeResp = anyErr.context as Response
+            if (typeof maybeResp.clone === 'function') {
+              try {
+                const body = await maybeResp.clone().text()
+                console.error('[callback] error body:', body)
+              } catch (readErr) {
+                console.error('[callback] could not read error body:', readErr)
+              }
+            }
+          }
+        }
+        throw new Error(err.message || 'Edge Function error')
+      }
+
       const summary = data ?? { sent: 0, skipped: 0, errors: 0, details: [] }
       const parts = [
         `${summary.sent} envoyé(s)`,
@@ -645,6 +677,7 @@ function MapappCallbackSection() {
       setToast(parts.join(' · '))
       setSelected(new Set())
     } catch (e: unknown) {
+      console.error('[callback] caught exception:', e)
       setToast(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setSending(false)
