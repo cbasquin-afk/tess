@@ -1,3 +1,20 @@
+// ── Callback Mapapp ─────────────────────────────────────────
+export interface CallbackResult {
+  lead_id: string
+  email: string | null
+  statut_interne: string
+  statut_mapapp: string | null
+  http_status: number | null
+  skipped: boolean
+}
+
+export interface CallbackSummary {
+  sent: number
+  skipped: number
+  errors: number
+  details: CallbackResult[]
+}
+
 export type LeadCategorie =
   | 'Contrat'
   | 'En cours'
