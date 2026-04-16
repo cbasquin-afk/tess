@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import { differenceInDays, parseISO } from 'date-fns'
-import { supabase } from '@/shared/supabase'
 import { useLeads } from '../hooks/useLeads'
-import type { CallbackSummary, Lead } from '../types'
+import type { Lead } from '../types'
 
 // Statuts du pipeline actif — fidèles au natif (config.js).
 // On filtre par statut exact (PIPELINE_ALL_STATUTS) et NON par catégorie
@@ -69,15 +68,6 @@ function fmt(n: number): string {
 function Pipeline() {
   const { leads, loading, error } = useLeads()
   const [filterStatut, setFilterStatut] = useState<string>('')
-  const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [sending, setSending] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 4500)
-    return () => clearTimeout(t)
-  }, [toast])
 
   // Pool initial : leads actifs (statut dans PIPELINE_ALL_STATUTS)
   const allActive = useMemo<PipelineLead[]>(() => {
@@ -106,65 +96,10 @@ function Pipeline() {
     return { chaud, tiede, j30, maxAge }
   }, [allActive])
 
-  const visible = useMemo(() => displayed.slice(0, MAX_ROWS), [displayed])
-
-  const sendableIds = useMemo(
-    () =>
-      visible
-        .filter((l) => l.identifiant_projet != null)
-        .map((l) => l.identifiant_projet),
-    [visible],
-  )
-  const allVisibleSelected =
-    sendableIds.length > 0 && sendableIds.every((id) => selected.has(id))
-
-  const toggleOne = useCallback((id: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const toggleAll = useCallback(() => {
-    setSelected((prev) => {
-      if (sendableIds.every((id) => prev.has(id))) {
-        const next = new Set(prev)
-        for (const id of sendableIds) next.delete(id)
-        return next
-      }
-      const next = new Set(prev)
-      for (const id of sendableIds) next.add(id)
-      return next
-    })
-  }, [sendableIds])
-
-  const handleSendCallback = useCallback(async () => {
-    if (selected.size === 0) return
-    setSending(true)
-    try {
-      const { data, error: err } = await supabase.functions.invoke<CallbackSummary>(
-        'perflead-callback-send',
-        { body: { lead_ids: Array.from(selected).map(String) } },
-      )
-      if (err) throw new Error(err.message)
-      const summary = data ?? { sent: 0, skipped: 0, errors: 0, details: [] }
-      const parts: string[] = []
-      parts.push(`${summary.sent} envoyé(s)`)
-      if (summary.skipped > 0) parts.push(`${summary.skipped} ignoré(s) (pas de mapping)`)
-      if (summary.errors > 0) parts.push(`${summary.errors} erreur(s)`)
-      setToast(parts.join(' · '))
-      setSelected(new Set())
-    } catch (e: unknown) {
-      setToast(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
-    } finally {
-      setSending(false)
-    }
-  }, [selected])
-
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
+
+  const visible = displayed.slice(0, MAX_ROWS)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -264,53 +199,12 @@ function Pipeline() {
 
         <div style={{ flex: 1 }} />
 
-        <button
-          type="button"
-          onClick={() => void handleSendCallback()}
-          disabled={selected.size === 0 || sending}
-          style={{
-            padding: '6px 14px',
-            fontSize: 12,
-            fontWeight: 600,
-            border: 'none',
-            borderRadius: 6,
-            cursor: selected.size === 0 || sending ? 'not-allowed' : 'pointer',
-            background: selected.size === 0 || sending ? '#e5e7eb' : '#1f3a8a',
-            color: selected.size === 0 || sending ? '#9ca3af' : '#fff',
-          }}
-        >
-          {sending
-            ? 'Envoi…'
-            : `Envoyer statuts Mapapp${selected.size > 0 ? ` (${selected.size})` : ''}`}
-        </button>
-
         <span style={{ color: '#94a3b8', fontSize: 12 }}>
           Affichage {fmt(visible.length)} / {fmt(displayed.length)}
           {displayed.length > MAX_ROWS && ` (max ${MAX_ROWS})`} ·{' '}
           {fmt(allActive.length)} actifs au total
         </span>
       </div>
-
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            right: 20,
-            padding: '10px 16px',
-            background: toast.startsWith('Erreur') ? '#ef4444' : '#1f3a8a',
-            color: '#fff',
-            fontSize: 13,
-            fontWeight: 500,
-            borderRadius: 8,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-          }}
-        >
-          {toast}
-        </div>
-      )}
 
       {/* Tableau */}
       <div
@@ -336,15 +230,6 @@ function Pipeline() {
           >
             <thead>
               <tr style={{ color: '#64748b', fontSize: 11, fontWeight: 600 }}>
-                <th style={{ ...th, width: 32 }}>
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleAll}
-                    disabled={sendableIds.length === 0}
-                    title="Tout sélectionner"
-                  />
-                </th>
                 <th style={th}>Délai</th>
                 <th style={th}>Statut</th>
                 <th style={th}>Commercial</th>
@@ -368,31 +253,11 @@ function Pipeline() {
                     ? 'Pioche'
                     : (l.attribution.split(' ')[0] ?? l.attribution)
                   : '—'
-                const hasProjectId = l.identifiant_projet != null
-                const isSelected = hasProjectId && selected.has(l.identifiant_projet)
                 return (
                   <tr
                     key={l.id ?? l.identifiant_projet ?? Math.random()}
-                    style={{
-                      borderTop: '1px solid #f1f5f9',
-                      background: isSelected ? 'rgba(31,58,138,0.04)' : undefined,
-                    }}
+                    style={{ borderTop: '1px solid #f1f5f9' }}
                   >
-                    <td style={td}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        disabled={!hasProjectId}
-                        onChange={() =>
-                          hasProjectId && toggleOne(l.identifiant_projet)
-                        }
-                        title={
-                          hasProjectId
-                            ? 'Sélectionner'
-                            : 'Pas d\u2019identifiant projet'
-                        }
-                      />
-                    </td>
                     <td style={td}>
                       <span
                         style={{

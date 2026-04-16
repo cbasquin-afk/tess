@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { format, parseISO, startOfISOWeek } from 'date-fns'
 import {
   CategoryScale,
@@ -14,8 +14,9 @@ import {
   type ChartOptions,
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
+import { supabase } from '@/shared/supabase'
 import { useStats } from '../hooks/useStats'
-import type { Lead } from '../types'
+import type { CallbackSummary, Lead } from '../types'
 
 ChartJS.register(
   LineController,
@@ -511,6 +512,327 @@ function Fournisseur() {
           </div>
         )}
       </div>
+
+      {/* Section dédiée envoi statuts vers Mapapp (60 derniers jours) */}
+      <MapappCallbackSection />
+    </div>
+  )
+}
+
+// ═══════════ Section Mapapp Callback (60 derniers jours) ═══════════
+
+interface MapappLead {
+  identifiant_projet: number
+  leadbyte_id: string | null
+  email: string | null
+  statut: string | null
+  date_creation: string | null
+  prenom: string | null
+  nom: string | null
+}
+
+function MapappCallbackSection() {
+  const [leads, setLeads] = useState<MapappLead[]>([])
+  const [mapping, setMapping] = useState<Map<string, string>>(new Map())
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [sending, setSending] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 60)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
+
+    Promise.all([
+      supabase
+        .from('perflead_leads')
+        .select(
+          'identifiant_projet, leadbyte_id, email, statut, date_creation, prenom, nom',
+        )
+        .eq('origine', 'MapApp Digital')
+        .gte('date_creation', cutoffStr)
+        .order('date_creation', { ascending: false }),
+      supabase
+        .from('callback_statut_map')
+        .select('statut_interne, statut_mapapp, actif')
+        .eq('actif', true),
+    ])
+      .then(([rLeads, rMap]) => {
+        if (cancelled) return
+        if (rLeads.error) throw new Error(`leads: ${rLeads.error.message}`)
+        if (rMap.error) throw new Error(`mapping: ${rMap.error.message}`)
+        setLeads((rLeads.data ?? []) as MapappLead[])
+        const m = new Map<string, string>()
+        for (const row of (rMap.data ?? []) as {
+          statut_interne: string
+          statut_mapapp: string
+        }[]) {
+          m.set(row.statut_interne, row.statut_mapapp)
+        }
+        setMapping(m)
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Clé de sélection : leadbyte_id si dispo, sinon identifiant_projet en string
+  const rowKey = useCallback((l: MapappLead): string => {
+    return l.leadbyte_id ?? String(l.identifiant_projet)
+  }, [])
+
+  const sendableKeys = useMemo(
+    () =>
+      leads
+        .filter((l) => l.leadbyte_id != null || l.identifiant_projet != null)
+        .map(rowKey),
+    [leads, rowKey],
+  )
+
+  const allSelected =
+    sendableKeys.length > 0 && sendableKeys.every((k) => selected.has(k))
+
+  const toggleOne = useCallback((k: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
+      return next
+    })
+  }, [])
+
+  const toggleAll = useCallback(() => {
+    setSelected((prev) => {
+      if (sendableKeys.every((k) => prev.has(k))) return new Set()
+      return new Set(sendableKeys)
+    })
+  }, [sendableKeys])
+
+  const handleSend = useCallback(async () => {
+    if (selected.size === 0) return
+    setSending(true)
+    try {
+      const { data, error: err } =
+        await supabase.functions.invoke<CallbackSummary>(
+          'perflead-callback-send',
+          { body: { lead_ids: Array.from(selected) } },
+        )
+      if (err) throw new Error(err.message)
+      const summary = data ?? { sent: 0, skipped: 0, errors: 0, details: [] }
+      const parts = [
+        `${summary.sent} envoyé(s)`,
+        summary.skipped > 0 ? `${summary.skipped} ignoré(s)` : null,
+        summary.errors > 0 ? `${summary.errors} erreur(s)` : null,
+      ].filter(Boolean)
+      setToast(parts.join(' · '))
+      setSelected(new Set())
+    } catch (e: unknown) {
+      setToast(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSending(false)
+    }
+  }, [selected])
+
+  const fullName = (l: MapappLead): string => {
+    const n = [l.prenom, l.nom].filter(Boolean).join(' ').trim()
+    return n || '—'
+  }
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 10,
+        padding: 18,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 14,
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0, fontSize: 14 }}>
+            Envoi statuts → Mapapp Digital
+          </h3>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            Leads MapApp Digital des 60 derniers jours · sélectionner pour
+            notifier le webhook n8n.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#64748b' }}>
+            {fmt(leads.length)} leads · {selected.size} sélectionné(s)
+          </span>
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={selected.size === 0 || sending}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              border: 'none',
+              borderRadius: 6,
+              cursor:
+                selected.size === 0 || sending ? 'not-allowed' : 'pointer',
+              background:
+                selected.size === 0 || sending ? '#e5e7eb' : '#1f3a8a',
+              color: selected.size === 0 || sending ? '#9ca3af' : '#fff',
+            }}
+          >
+            {sending
+              ? 'Envoi…'
+              : `Envoyer statuts Mapapp${selected.size > 0 ? ` (${selected.size})` : ''}`}
+          </button>
+        </div>
+      </div>
+
+      {loading && (
+        <div style={{ color: '#64748b', fontSize: 13 }}>Chargement…</div>
+      )}
+      {error && (
+        <div style={{ color: '#dc2626', fontSize: 13 }}>Erreur : {error}</div>
+      )}
+
+      {!loading && !error && leads.length === 0 && (
+        <div style={{ color: '#94a3b8', fontSize: 13 }}>
+          Aucun lead MapApp Digital sur les 60 derniers jours.
+        </div>
+      )}
+
+      {!loading && !error && leads.length > 0 && (
+        <div style={{ overflowX: 'auto', maxHeight: 520, overflowY: 'auto' }}>
+          <table
+            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
+          >
+            <thead>
+              <tr style={{ color: '#64748b', fontSize: 11, fontWeight: 600 }}>
+                <th style={{ ...th, width: 32, background: '#f8fafc', position: 'sticky', top: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    disabled={sendableKeys.length === 0}
+                    title="Tout (dé)sélectionner"
+                  />
+                </th>
+                <th style={{ ...th, background: '#f8fafc', position: 'sticky', top: 0 }}>Date</th>
+                <th style={{ ...th, background: '#f8fafc', position: 'sticky', top: 0 }}>Nom</th>
+                <th style={{ ...th, background: '#f8fafc', position: 'sticky', top: 0 }}>Statut</th>
+                <th style={{ ...th, background: '#f8fafc', position: 'sticky', top: 0 }}>Statut Mapapp</th>
+                <th style={{ ...th, background: '#f8fafc', position: 'sticky', top: 0 }}>Leadbyte ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leads.map((l) => {
+                const k = rowKey(l)
+                const isSel = selected.has(k)
+                const hasKey =
+                  l.leadbyte_id != null || l.identifiant_projet != null
+                const statutMapapp = l.statut ? (mapping.get(l.statut) ?? null) : null
+                return (
+                  <tr
+                    key={k}
+                    style={{
+                      borderTop: '1px solid #f1f5f9',
+                      background: isSel ? 'rgba(31,58,138,0.05)' : undefined,
+                    }}
+                  >
+                    <td style={td}>
+                      <input
+                        type="checkbox"
+                        checked={isSel}
+                        disabled={!hasKey}
+                        onChange={() => hasKey && toggleOne(k)}
+                      />
+                    </td>
+                    <td style={{ ...td, color: '#94a3b8' }}>
+                      {fmtDate(l.date_creation)}
+                    </td>
+                    <td style={{ ...td, color: '#0f172a' }}>{fullName(l)}</td>
+                    <td style={{ ...td, color: '#475569' }}>{l.statut ?? '—'}</td>
+                    <td style={td}>
+                      {statutMapapp ? (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: 10,
+                            background: '#dbeafe',
+                            color: '#1e40af',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            fontFamily: 'JetBrains Mono, monospace',
+                          }}
+                        >
+                          {statutMapapp}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#cbd5e1', fontSize: 11 }}>—</span>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        ...td,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontSize: 12,
+                        color: l.leadbyte_id ? '#0f172a' : '#cbd5e1',
+                      }}
+                    >
+                      {l.leadbyte_id ?? '–'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            padding: '10px 16px',
+            background: toast.startsWith('Erreur') ? '#ef4444' : '#1f3a8a',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 500,
+            borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

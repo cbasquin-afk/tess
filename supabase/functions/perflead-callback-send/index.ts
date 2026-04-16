@@ -31,6 +31,7 @@ interface CallbackResult {
 
 interface LeadRow {
   identifiant_projet: number | null
+  leadbyte_id: string | null
   email: string | null
   statut: string | null
 }
@@ -83,18 +84,21 @@ Deno.serve(async (req) => {
 
     // Les lead_ids peuvent arriver en string (UI) ou number — convertir tous
     // en number pour le filtre SQL sur identifiant_projet (bigint)
-    const numericIds = lead_ids
-      .map((id: unknown) => Number(id))
-      .filter((n) => Number.isFinite(n) && n > 0)
+    // Les lead_ids peuvent être des leadbyte_id (text) OU des
+    // identifiant_projet convertis en string. On les normalise et on
+    // interroge par les DEUX colonnes via un OR.
+    const idStrings = lead_ids
+      .map((id: unknown) => (typeof id === 'string' ? id : String(id ?? '')))
+      .filter((s) => s.length > 0)
 
-    if (numericIds.length === 0) {
+    if (idStrings.length === 0) {
       return new Response(
         JSON.stringify({
           sent: 0,
           skipped: 0,
           errors: 0,
           details: [],
-          error: 'Aucun lead_id numérique valide',
+          error: 'Aucun lead_id valide',
         }),
         {
           status: 400,
@@ -103,11 +107,27 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 1. Fetch leads
-    const { data: leadsData, error: eLeads } = await supabase
+    // Candidats identifiant_projet : ceux qui sont convertibles en entier
+    const numericIds = idStrings
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n) && n > 0 && Number.isInteger(n))
+
+    // 1. Fetch leads — OR sur leadbyte_id et identifiant_projet
+    let query = supabase
       .from('perflead_leads')
-      .select('identifiant_projet, email, statut')
-      .in('identifiant_projet', numericIds)
+      .select('identifiant_projet, leadbyte_id, email, statut')
+
+    const inLeadbyte = idStrings.map((s) => `"${s}"`).join(',')
+    const inProjet = numericIds.join(',')
+    if (numericIds.length > 0) {
+      query = query.or(
+        `leadbyte_id.in.(${inLeadbyte}),identifiant_projet.in.(${inProjet})`,
+      )
+    } else {
+      query = query.in('leadbyte_id', idStrings)
+    }
+
+    const { data: leadsData, error: eLeads } = await query
 
     if (eLeads) {
       return new Response(
@@ -145,7 +165,10 @@ Deno.serve(async (req) => {
     // 3. Construire les payloads (avec ou sans mapping)
     const conversionDate = new Date().toISOString()
     const tasks = leads.map(async (lead): Promise<CallbackResult> => {
-      const leadIdStr = String(lead.identifiant_projet ?? '')
+      // Préférer leadbyte_id (identifiant natif Mapapp) ; fallback sur
+      // identifiant_projet si absent.
+      const leadIdStr =
+        lead.leadbyte_id ?? String(lead.identifiant_projet ?? '')
       const statutInterne = lead.statut ?? ''
       const statutMapapp = mapping.get(statutInterne) ?? null
 
