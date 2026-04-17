@@ -12,6 +12,7 @@ const Reprises = lazyWithRetry(() => import('./views/Reprises'))
 const Marge = lazyWithRetry(() => import('./views/Marge'))
 const Charges = lazyWithRetry(() => import('./views/Charges'))
 const Factures = lazyWithRetry(() => import('./views/Factures'))
+const VersementsReconciliation = lazyWithRetry(() => import('./views/VersementsReconciliation'))
 
 // FinancesProvider wrap tout le module : 1 seul fetch (commissions +
 // contrats lean) au mount, partagé entre Dashboard / CA / Mandataires
@@ -33,6 +34,7 @@ function FinancesModule() {
           <Route path="mandataires" element={<Mandataires />} />
           <Route path="portefeuille" element={<Portefeuille />} />
           <Route path="versements" element={<Versements />} />
+          <Route path="versements/bordereau/:id" element={<VersementsReconciliation />} />
           <Route path="reprises" element={<Reprises />} />
           <Route path="marge" element={<Marge />} />
           <Route path="charges" element={<Charges />} />

@@ -16,6 +16,8 @@ import type {
   Versement,
   VersementAttendu,
   VersementAttenduDetail,
+  VersementBordereau,
+  VersementLigne,
 } from './types'
 
 export async function fetchAllCommissions(): Promise<CommissionRow[]> {
@@ -271,6 +273,63 @@ export async function fetchVersementsAttendusDetail(
     .order('client', { ascending: true })
   if (error) throw new Error(`tadmin_v_versements_attendus_detail: ${error.message}`)
   return (data ?? []) as VersementAttenduDetail[]
+}
+
+// ── Bordereaux ──────────────────────────────────────────────
+export async function fetchBordereaux(): Promise<VersementBordereau[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_bordereaux')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(`tadmin_v_bordereaux: ${error.message}`)
+  return (data ?? []) as VersementBordereau[]
+}
+
+export async function fetchBordereauLignes(
+  bordereauId: string,
+): Promise<VersementLigne[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_versements_lignes_detail')
+    .select('*')
+    .eq('bordereau_id', bordereauId)
+    .order('client_raw', { ascending: true })
+  if (error) throw new Error(`tadmin_v_versements_lignes_detail: ${error.message}`)
+  return (data ?? []) as VersementLigne[]
+}
+
+export async function updateLigneMatch(
+  ligneId: string,
+  contratId: string | null,
+  matchStatus: 'manuel' | 'non_match',
+): Promise<void> {
+  const { error } = await supabase
+    .schema('tadmin')
+    .from('versements_lignes')
+    .update({ contrat_id: contratId, match_status: matchStatus })
+    .eq('id', ligneId)
+  if (error) throw new Error(`update ligne match: ${error.message}`)
+}
+
+export async function validerBordereau(bordereauId: string): Promise<void> {
+  const { error } = await supabase
+    .schema('tadmin')
+    .from('versements_bordereaux')
+    .update({ status: 'validated' })
+    .eq('id', bordereauId)
+  if (error) throw new Error(`valider bordereau: ${error.message}`)
+}
+
+export async function fetchContratsCompagnie(
+  compagnie: string,
+): Promise<{ id: string; client: string }[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_contrats')
+    .select('id, client')
+    .eq('compagnie_assureur', compagnie)
+    .eq('workflow_statut', 'actif')
+    .order('client', { ascending: true })
+  if (error) throw new Error(`contrats compagnie: ${error.message}`)
+  return (data ?? []) as { id: string; client: string }[]
 }
 
 // ── Reprises ─────────────────────────────────────────────────

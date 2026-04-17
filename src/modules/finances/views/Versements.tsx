@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Badge, Modal } from '@/shared/ui'
 import {
   fetchVersementsAttendus,
   fetchVersementsAttendusDetail,
+  fetchBordereaux,
 } from '../api'
 import {
   tableStyle,
@@ -17,8 +19,9 @@ import {
   trBody,
   MONO,
 } from '../styles/tableTokens'
-import type { VersementAttendu, VersementAttenduDetail } from '../types'
+import type { VersementAttendu, VersementAttenduDetail, VersementBordereau } from '../types'
 import { GROSSISTES } from '../types'
+import { VersementsUploadModal } from '../components/VersementsUploadModal'
 
 const MOIS_NOMS = [
   '',
@@ -74,12 +77,39 @@ interface PeriodGroup {
   total: number
 }
 
+type VersementsTab = 'attendus' | 'bordereaux'
+
 function Versements() {
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<VersementsTab>('attendus')
   const [data, setData] = useState<VersementAttendu[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [annee, setAnnee] = useState(() => new Date().getFullYear())
   const [moisFiltre, setMoisFiltre] = useState<number | ''>('')
+
+  // Bordereaux tab state
+  const [bordereaux, setBordereaux] = useState<VersementBordereau[]>([])
+  const [bordLoading, setBordLoading] = useState(false)
+  const [showUpload, setShowUpload] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  const loadBordereaux = useCallback(async () => {
+    setBordLoading(true)
+    try {
+      setBordereaux(await fetchBordereaux())
+    } catch {
+      // silent
+    } finally {
+      setBordLoading(false)
+    }
+  }, [])
 
   const [drillTarget, setDrillTarget] = useState<{
     compagnie: string
@@ -163,12 +193,180 @@ function Versements() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Versements attendus</h1>
+        <h1 style={{ margin: 0, fontSize: 24 }}>Versements</h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Commissions que chaque compagnie doit verser à Tessoria, calculées depuis les commissions prévues.
+          Commissions attendues et bordereaux reçus des compagnies.
         </p>
       </div>
 
+      {/* Onglets */}
+      <div style={{ display: 'flex', borderBottom: '2px solid #e5e7eb', marginBottom: 0 }}>
+        {([
+          { id: 'attendus' as const, label: 'Attendus' },
+          { id: 'bordereaux' as const, label: 'Bordereaux reçus' },
+        ]).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setActiveTab(tab.id)
+              if (tab.id === 'bordereaux') void loadBordereaux()
+            }}
+            style={{
+              padding: '10px 20px',
+              fontSize: 14,
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              color: activeTab === tab.id ? '#1f3a8a' : '#6b7280',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === tab.id ? '2px solid #1f3a8a' : '2px solid transparent',
+              marginBottom: -2,
+              cursor: 'pointer',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            padding: '10px 16px',
+            background: '#1f3a8a',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 500,
+            borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+          }}
+        >
+          {toast}
+        </div>
+      )}
+
+      {/* Onglet Bordereaux */}
+      {activeTab === 'bordereaux' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setShowUpload(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#1f3a8a',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + Uploader un bordereau
+            </button>
+          </div>
+
+          {bordLoading ? (
+            <div style={{ color: '#64748b', fontSize: 13 }}>Chargement…</div>
+          ) : bordereaux.length === 0 ? (
+            <div
+              style={{
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 10,
+                padding: 32,
+                textAlign: 'center',
+                color: '#94a3b8',
+                fontSize: 13,
+              }}
+            >
+              Aucun bordereau uploadé.
+            </div>
+          ) : (
+            <div
+              style={{
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 10,
+                padding: 18,
+                overflowX: 'auto',
+              }}
+            >
+              <table style={{ ...tableStyle, tableLayout: 'auto' }}>
+                <thead>
+                  <tr style={trHead}>
+                    <th style={th}>Compagnie</th>
+                    <th style={th}>Période</th>
+                    <th style={th}>Upload</th>
+                    <th style={thRight}>Lignes</th>
+                    <th style={th}>Statut matching</th>
+                    <th style={thRight}>Total</th>
+                    <th style={th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bordereaux.map((b) => (
+                    <tr key={b.id} style={trBody}>
+                      <td style={{ ...td, fontWeight: 600, color: '#0f172a' }}>{b.compagnie}</td>
+                      <td style={td}>{MOIS_NOMS[b.mois]} {b.annee}</td>
+                      <td style={{ ...td, fontSize: 11, color: '#94a3b8' }}>
+                        {new Date(b.created_at).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td style={{ ...td, textAlign: 'right' }}>{b.nb_lignes_total}</td>
+                      <td style={td}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {(b.nb_auto ?? 0) > 0 && <Badge tone="success">✅ {b.nb_auto}</Badge>}
+                          {(b.nb_manuel ?? 0) > 0 && <Badge tone="info">🔧 {b.nb_manuel}</Badge>}
+                          {(b.nb_ambigu ?? 0) > 0 && <Badge tone="warning">⚠️ {b.nb_ambigu}</Badge>}
+                          {(b.nb_non_match ?? 0) > 0 && <Badge tone="danger">❌ {b.nb_non_match}</Badge>}
+                        </div>
+                      </td>
+                      <td style={{ ...tdMontant, fontWeight: 600 }}>
+                        {b.total_montant != null ? fmtEur(b.total_montant) : '—'}
+                      </td>
+                      <td style={td}>
+                        <button
+                          onClick={() => navigate(`/finances/versements/bordereau/${b.id}`)}
+                          style={{
+                            padding: '4px 10px',
+                            background: '#1f3a8a',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Réconcilier
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <VersementsUploadModal
+            open={showUpload}
+            onClose={() => setShowUpload(false)}
+            onSuccess={(bordereauId, summary) => {
+              setShowUpload(false)
+              setToast(summary)
+              void loadBordereaux()
+              navigate(`/finances/versements/bordereau/${bordereauId}`)
+            }}
+          />
+        </div>
+      )}
+
+      {activeTab === 'attendus' && (
+      <>
       <div
         style={{
           background: '#fff',
@@ -406,6 +604,8 @@ function Versements() {
           </div>
         )}
       </Modal>
+      </>
+      )}
     </div>
   )
 }

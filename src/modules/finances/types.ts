@@ -257,6 +257,54 @@ export const GROSSISTES = [
   'ALPTIS', 'GSMC', 'CEGEMA',
 ] as const
 
+// ── Bordereaux versements ────────────────────────────────────
+export interface VersementBordereau {
+  id: string
+  compagnie: string
+  annee: number
+  mois: number
+  source_file_name: string | null
+  source_type: 'pdf' | 'csv' | 'manuel' | null
+  total_brut_fichier: number | null
+  nb_lignes_total: number
+  nb_matchees: number
+  nb_non_matchees: number
+  status: 'uploaded' | 'parsed' | 'matched' | 'validated'
+  created_at: string
+  nb_auto: number
+  nb_manuel: number
+  nb_ambigu: number
+  nb_non_match: number
+  total_montant: number | null
+}
+
+export interface VersementLigne {
+  id: string
+  bordereau_id: string
+  compagnie: string | null
+  client_raw: string
+  police_num: string | null
+  produit: string | null
+  periode_debut: string | null
+  periode_fin: string | null
+  base: number | null
+  type_com: string | null
+  taux_pct: number | null
+  montant: number
+  motif: string | null
+  contrat_id: string | null
+  match_status: 'auto' | 'manuel' | 'non_match' | 'ambigu'
+  match_confidence_pct: number | null
+  contrat_client: string | null
+  contrat_cotisation: number | null
+  contrat_date_signature: string | null
+}
+
+export const COMPAGNIES_BORDEREAU = [
+  'FMA', 'ASAF', 'COVERITY', 'UTWIN', 'APRIL',
+  'ALPTIS', 'GSMC', 'CEGEMA', 'SWISSLIFE', 'APICIL', 'HENNER',
+] as const
+
 // ── Vue finances_v_factures_mandataires ─────────────────────
 export type StatutFacture = 'a_generer' | 'generee' | 'envoyee' | 'payee'
 
