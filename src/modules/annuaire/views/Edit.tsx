@@ -245,6 +245,38 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
   const [saving, setSaving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
+  // Resync form quand les données sont rechargées (après save ou navigation)
+  useEffect(() => {
+    setForm({
+      statut_page: (statut?.statut_page ?? 'brouillon') as StatutPage,
+      statut_partenaire: (statut?.statut_partenaire ?? 'non_partenaire') as StatutPartenaire,
+      alerte_verif: statut?.alerte_verif ?? false,
+      note_interne: statut?.note_interne ?? '',
+      avis_courtier_court: statut?.avis_courtier_court ?? '',
+      profil_ideal: statut?.profil_ideal ?? '',
+      points_forts_editorial: statut?.points_forts_editorial ?? [],
+      points_faibles: statut?.points_faibles ?? [],
+      groupe_appartenance: statut?.groupe_appartenance ?? '',
+      annee_creation: statut?.annee_creation,
+      nb_assures: statut?.nb_assures ?? '',
+      positionnement_tarifaire: statut?.positionnement_tarifaire ?? '',
+      prix_entree_marche: mutuelle.prix_entree_marche,
+      prix_entree_age_label: mutuelle.prix_entree_age_label ?? '',
+      note_courtier: mutuelle.note_courtier,
+      age_min_verifie: mutuelle.age_min_verifie,
+      age_max_verifie: mutuelle.age_max_verifie,
+      age_min_adhesion: mutuelle.age_min_adhesion,
+      age_max_adhesion: mutuelle.age_max_adhesion,
+      noindex: mutuelle.noindex,
+      seo_title_override: mutuelle.seo_title_override ?? '',
+      seo_meta_override: mutuelle.seo_meta_override ?? '',
+      analyse_courtier: mutuelle.analyse_courtier ?? '',
+      ce_que_tessoria_en_pense: mutuelle.ce_que_tessoria_en_pense ?? '',
+      points_forts: mutuelle.points_forts ?? [],
+      points_vigilance: mutuelle.points_vigilance ?? [],
+    })
+  }, [statut, mutuelle])
+
   const originalStatut = statut?.statut_page ?? 'brouillon'
 
   type ArrayKey = 'points_forts' | 'points_vigilance' | 'points_forts_editorial' | 'points_faibles'
