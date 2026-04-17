@@ -146,6 +146,7 @@ function Edit() {
       {activeTab === 'identite' && (
         <TabIdentite
           slug={slug}
+          verticale={statut?.verticale ?? 'mutuelle'}
           mutuelle={mutuelle}
           statut={statut}
           onReload={load}
@@ -198,15 +199,19 @@ function Edit() {
 
 // ══════════════ Tab 1 — Identité ══════════════════════════════
 
+const MUTUELLE_VERTICALES = new Set(['mutuelle', 'tns', 'prevoyance_tns'])
+
 interface TabIdentiteProps {
   slug: string
+  verticale: string
   mutuelle: MutuelleEditableFields
   statut: FicheEditResult['statut']
   onReload: () => Promise<void>
   onToast: (t: Toast) => void
 }
 
-function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteProps) {
+function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: TabIdentiteProps) {
+  const isMutuelleLike = MUTUELLE_VERTICALES.has(verticale)
   const [form, setForm] = useState({
     // annuaire_statut fields
     statut_page: (statut?.statut_page ?? 'brouillon') as StatutPage,
@@ -395,74 +400,78 @@ function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteP
             style={inputStyle}
           />
         </Field>
-        <Field label="Note courtier (0–5)">
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            max="5"
-            value={form.note_courtier ?? ''}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                note_courtier: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="Âge min vérifié">
-          <input
-            type="number"
-            value={form.age_min_verifie ?? ''}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                age_min_verifie: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="Âge max vérifié">
-          <input
-            type="number"
-            value={form.age_max_verifie ?? ''}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                age_max_verifie: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="Âge min adhésion">
-          <input
-            type="number"
-            value={form.age_min_adhesion ?? ''}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                age_min_adhesion: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="Âge max adhésion">
-          <input
-            type="number"
-            value={form.age_max_adhesion ?? ''}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                age_max_adhesion: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-            style={inputStyle}
-          />
-        </Field>
+        {isMutuelleLike && (
+          <>
+            <Field label="Note courtier (0–5)">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="5"
+                value={form.note_courtier ?? ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    note_courtier: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Âge min vérifié">
+              <input
+                type="number"
+                value={form.age_min_verifie ?? ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    age_min_verifie: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Âge max vérifié">
+              <input
+                type="number"
+                value={form.age_max_verifie ?? ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    age_max_verifie: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Âge min adhésion">
+              <input
+                type="number"
+                value={form.age_min_adhesion ?? ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    age_min_adhesion: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Âge max adhésion">
+              <input
+                type="number"
+                value={form.age_max_adhesion ?? ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    age_max_adhesion: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                style={inputStyle}
+              />
+            </Field>
+          </>
+        )}
         <Field label="noindex">
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input

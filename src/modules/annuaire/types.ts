@@ -31,15 +31,19 @@ export const VERTICALES_ANNUAIRE = [
   'tns',
   'prevoyance_tns',
   'obseques',
+  'emprunteur',
   'animaux',
+  'frontalier',
 ] as const
 
 export const VERTICALE_LABELS: Record<string, string> = {
-  mutuelle: 'Mutuelle Senior',
-  tns: 'TNS',
+  mutuelle: 'Mutuelle',
+  tns: 'Mutuelle TNS',
   prevoyance_tns: 'Prévoyance TNS',
   obseques: 'Obsèques',
+  emprunteur: 'Emprunteur',
   animaux: 'Animaux',
+  frontalier: 'Frontalier',
 }
 
 // ── Depuis v_annuaire (post-migration) ──────────────────────
