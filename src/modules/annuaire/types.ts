@@ -27,45 +27,66 @@ export const SITUATIONS: readonly SituationReco[] = [
 ] as const
 
 export const VERTICALES_ANNUAIRE = [
-  'senior',
+  'mutuelle',
   'tns',
-  'generique',
-  'frontalier',
-  'collective',
+  'prevoyance_tns',
+  'obseques',
+  'animaux',
 ] as const
 
-// ── Depuis v_annuaire ────────────────────────────────────────
+export const VERTICALE_LABELS: Record<string, string> = {
+  mutuelle: 'Mutuelle Senior',
+  tns: 'TNS',
+  prevoyance_tns: 'Prévoyance TNS',
+  obseques: 'Obsèques',
+  animaux: 'Animaux',
+}
+
+// ── Depuis v_annuaire (post-migration) ──────────────────────
 export interface AnnuaireRow {
   slug: string
-  seo_title_override: string | null
+  verticale: string
+  avis_courtier_court: string | null
+  profil_ideal: string | null
+  points_forts: string[] | null
+  points_faibles: string[] | null
+  groupe_appartenance: string | null
+  annee_creation: number | null
+  nb_assures: string | null
+  positionnement_tarifaire: string | null
   note_courtier: number | null
   prix_entree_marche: number | null
-  niveaux_disponibles: string[]
-  age_min_verifie: number | null
-  age_max_verifie: number | null
-  has_garanties: boolean
-  has_tarifs: boolean
-  nb_tarifs_devis: number
-  nb_formules_mappees: number
-  nb_references: number
-  nb_regles_reco: number
   statut_page: StatutPage
   statut_partenaire: StatutPartenaire
-  verticales: string[] | null
   alerte_verif: boolean | null
   date_derniere_maj: string | null
+  prix_simule_le: string | null
+  prix_simule_source: string | null
+  nb_formules_mappees: number
+  nb_regles_reco: number
   updated_at: string
 }
 
-// ── annuaire_statut ──────────────────────────────────────────
+// ── annuaire_statut (PK composite slug+verticale) ────────────
 export interface AnnuaireStatut {
   slug: string
+  verticale: string
   statut_page: StatutPage
   statut_partenaire: StatutPartenaire
-  verticales: string[]
   alerte_verif: boolean
   date_derniere_maj: string | null
   note_interne: string | null
+  prix_simule_le: string | null
+  prix_simule_source: string | null
+  prix_simule_note: string | null
+  avis_courtier_court: string | null
+  profil_ideal: string | null
+  points_forts_editorial: string[] | null
+  points_faibles: string[] | null
+  groupe_appartenance: string | null
+  annee_creation: number | null
+  nb_assures: string | null
+  positionnement_tarifaire: string | null
   updated_at: string
 }
 

@@ -12,8 +12,12 @@ const MUTUELLE_COLS =
   'slug, seo_title_override, seo_meta_override, prix_entree_marche, prix_entree_age_label, note_courtier, age_min_verifie, age_max_verifie, age_min_adhesion, age_max_adhesion, niveaux_disponibles, tarifs_par_age, source_tarifs, source_tarifs_url, source_tarifs_date, source_tarifs_validee, source_tarifs_note, analyse_courtier, ce_que_tessoria_en_pense, points_forts, points_vigilance, noindex, updated_at'
 
 // ── Liste ────────────────────────────────────────────────────
-export async function fetchAnnuaire(): Promise<AnnuaireRow[]> {
-  const { data, error } = await supabase.from('v_annuaire').select('*')
+export async function fetchAnnuaire(
+  verticale?: string,
+): Promise<AnnuaireRow[]> {
+  let q = supabase.from('v_annuaire').select('*')
+  if (verticale) q = q.eq('verticale', verticale)
+  const { data, error } = await q
   if (error) throw new Error(`v_annuaire: ${error.message}`)
   return (data ?? []) as AnnuaireRow[]
 }
@@ -26,14 +30,22 @@ export interface FicheEditResult {
   regles: RecommandationRule[]
 }
 
-export async function fetchFicheEdit(slug: string): Promise<FicheEditResult> {
+export async function fetchFicheEdit(
+  slug: string,
+  verticale = 'mutuelle',
+): Promise<FicheEditResult> {
   const [rM, rS, rF, rR] = await Promise.all([
     supabase
       .from('marque_verticale_mutuelle')
       .select(MUTUELLE_COLS)
       .eq('slug', slug)
       .maybeSingle(),
-    supabase.from('annuaire_statut').select('*').eq('slug', slug).maybeSingle(),
+    supabase
+      .from('annuaire_statut')
+      .select('*')
+      .eq('slug', slug)
+      .eq('verticale', verticale)
+      .maybeSingle(),
     supabase
       .from('annuaire_formule_niveau')
       .select('*')
@@ -58,13 +70,13 @@ export async function fetchFicheEdit(slug: string): Promise<FicheEditResult> {
   }
 }
 
-// ── Statut + verticales + note interne ───────────────────────
+// ── Statut (PK composite slug+verticale) ─────────────────────
 export async function upsertStatut(
-  data: Partial<AnnuaireStatut> & { slug: string },
+  data: Partial<AnnuaireStatut> & { slug: string; verticale: string },
 ): Promise<void> {
   const { error } = await supabase
     .from('annuaire_statut')
-    .upsert(data, { onConflict: 'slug' })
+    .upsert(data, { onConflict: 'slug,verticale' })
   if (error) throw new Error(`upsert annuaire_statut: ${error.message}`)
 }
 
@@ -155,13 +167,16 @@ export async function fetchAlertes(): Promise<AnnuaireRow[]> {
   return (data ?? []) as AnnuaireRow[]
 }
 
-export async function marquerVerifie(slug: string): Promise<void> {
+export async function marquerVerifie(
+  slug: string,
+  verticale = 'mutuelle',
+): Promise<void> {
   const today = new Date().toISOString().split('T')[0]
   const { error } = await supabase
     .from('annuaire_statut')
     .upsert(
-      { slug, alerte_verif: false, date_derniere_maj: today },
-      { onConflict: 'slug' },
+      { slug, verticale, alerte_verif: false, date_derniere_maj: today },
+      { onConflict: 'slug,verticale' },
     )
   if (error) throw new Error(`marquer verifie: ${error.message}`)
 }
