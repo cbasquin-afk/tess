@@ -223,6 +223,40 @@ export interface ChargeMensuelle {
   created_at: string
 }
 
+// ── Vue tadmin_v_versements_attendus ─────────────────────────
+export interface VersementAttendu {
+  compagnie: string
+  annee: number
+  mois: number
+  nb_contrats: number
+  nb_acquisitions: number
+  nb_renouvellements: number
+  montant_attendu: number
+  montant_acquisition: number
+  montant_renouvellement: number
+}
+
+export interface VersementAttenduDetail {
+  id: string
+  contrat_id: string
+  annee: number
+  mois: number
+  type_ligne: 'commission' | 'renouvellement'
+  montant_com_societe: number
+  montant_frais: number | null
+  client: string
+  compagnie: string
+  type_contrat: string | null
+  type_commission: string | null
+  date_signature: string | null
+  cotisation_mensuelle: number | null
+}
+
+export const GROSSISTES = [
+  'ASAF', 'FMA', 'COVERITY', 'UTWIN', 'APRIL',
+  'ALPTIS', 'GSMC', 'CEGEMA',
+] as const
+
 // ── Vue finances_v_factures_mandataires ─────────────────────
 export type StatutFacture = 'a_generer' | 'generee' | 'envoyee' | 'payee'
 

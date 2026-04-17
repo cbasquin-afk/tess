@@ -14,6 +14,8 @@ import type {
   RetractationRow,
   StatutFacture,
   Versement,
+  VersementAttendu,
+  VersementAttenduDetail,
 } from './types'
 
 export async function fetchAllCommissions(): Promise<CommissionRow[]> {
@@ -244,6 +246,31 @@ export async function fetchVersements(): Promise<Versement[]> {
     date_versement: (r.date_versement as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
   }))
+}
+
+// ── Versements attendus ─────────────────────────────────────
+export async function fetchVersementsAttendus(): Promise<VersementAttendu[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_versements_attendus')
+    .select('*')
+  if (error) throw new Error(`tadmin_v_versements_attendus: ${error.message}`)
+  return (data ?? []) as VersementAttendu[]
+}
+
+export async function fetchVersementsAttendusDetail(
+  compagnie: string,
+  annee: number,
+  mois: number,
+): Promise<VersementAttenduDetail[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_versements_attendus_detail')
+    .select('*')
+    .eq('compagnie', compagnie)
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .order('client', { ascending: true })
+  if (error) throw new Error(`tadmin_v_versements_attendus_detail: ${error.message}`)
+  return (data ?? []) as VersementAttenduDetail[]
 }
 
 // ── Reprises ─────────────────────────────────────────────────
