@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { fetchAnnuaire } from '../api'
 import { StatutBadge } from '../components/StatutBadge'
 import { PartenaireBadge } from '../components/PartenaireBadge'
-import { NiveauPill } from '../components/NiveauPill'
 import type { AnnuaireRow, StatutPage, StatutPartenaire } from '../types'
+import { VERTICALES_ANNUAIRE, VERTICALE_LABELS } from '../types'
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -23,7 +23,7 @@ function isStale(iso: string | null): boolean {
   return d < cutoff
 }
 
-function statutRank(s: StatutPage): number {
+function statutRank(s: string): number {
   if (s === 'publiee') return 0
   if (s === 'brouillon') return 1
   return 2
@@ -34,6 +34,7 @@ function Liste() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [verticaleActive, setVerticaleActive] = useState<string>('mutuelle')
   const [tab, setTab] = useState<'' | StatutPage>('')
   const [filtrePartenaire, setFiltrePartenaire] = useState<StatutPartenaire | ''>('')
   const [filtreAlerte, setFiltreAlerte] = useState(false)
@@ -42,7 +43,8 @@ function Liste() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchAnnuaire()
+    setError(null)
+    fetchAnnuaire(verticaleActive || undefined)
       .then((d) => {
         if (!cancelled) setRows(d)
       })
@@ -55,16 +57,17 @@ function Liste() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [verticaleActive])
 
   const kpis = useMemo(() => {
     const publiee = rows.filter((r) => r.statut_page === 'publiee')
     return {
+      total: rows.length,
       publiees: publiee.length,
       partenairesDirects: publiee.filter(
         (r) => r.statut_partenaire === 'partenaire_direct',
       ).length,
-      sansRegles: publiee.filter((r) => r.nb_regles_reco === 0).length,
+      sansRegles: publiee.filter((r) => (r.nb_regles_reco ?? 0) === 0).length,
       alertes: publiee.filter((r) => r.alerte_verif === true).length,
     }
   }, [rows])
@@ -75,13 +78,7 @@ function Liste() {
       if (tab && r.statut_page !== tab) return false
       if (filtrePartenaire && r.statut_partenaire !== filtrePartenaire) return false
       if (filtreAlerte && !r.alerte_verif) return false
-      if (s) {
-        const hay =
-          r.slug.toLowerCase() +
-          ' ' +
-          (r.seo_title_override ?? '').toLowerCase()
-        if (!hay.includes(s)) return false
-      }
+      if (s && !r.slug.toLowerCase().includes(s)) return false
       return true
     })
     list.sort((a, b) => {
@@ -100,11 +97,44 @@ function Liste() {
   return (
     <div style={{ padding: 24 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-        Annuaire mutuelles
+        Annuaire compagnies
       </h1>
       <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
-        {rows.length} fiches · gestion statut, partenariat, garanties, tarifs et règles de recommandation.
+        {kpis.total} fiches {VERTICALE_LABELS[verticaleActive] ?? verticaleActive}.
       </p>
+
+      {/* Sélecteur verticale */}
+      <div
+        style={{
+          display: 'flex',
+          border: '1px solid #e5e7eb',
+          borderRadius: 6,
+          overflow: 'hidden',
+          marginBottom: 16,
+          width: 'fit-content',
+        }}
+      >
+        {VERTICALES_ANNUAIRE.map((v) => {
+          const active = verticaleActive === v
+          return (
+            <button
+              key={v}
+              onClick={() => setVerticaleActive(v)}
+              style={{
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: active ? '#1f3a8a' : 'transparent',
+                color: active ? '#fff' : '#64748b',
+              }}
+            >
+              {VERTICALE_LABELS[v] ?? v}
+            </button>
+          )
+        })}
+      </div>
 
       {/* KPIs */}
       <div
@@ -131,7 +161,6 @@ function Liste() {
           marginBottom: 16,
         }}
       >
-        {/* Tabs statut */}
         <div
           style={{
             display: 'flex',
@@ -191,7 +220,7 @@ function Liste() {
 
         <input
           type="search"
-          placeholder="Rechercher…"
+          placeholder="Rechercher par slug…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ ...selectStyle, minWidth: 220 }}
@@ -217,8 +246,8 @@ function Liste() {
               <th style={th}>Compagnie</th>
               <th style={th}>Statut</th>
               <th style={th}>Partenaire</th>
-              <th style={th}>Niveaux</th>
-              <th style={th}>Données</th>
+              <th style={th}>Note</th>
+              <th style={th}>Prix entrée</th>
               <th style={th}>Reco</th>
               <th style={th}>MAJ</th>
               <th style={{ ...th, textAlign: 'right' }}>Actions</th>
@@ -228,35 +257,44 @@ function Liste() {
             {filtered.map((r) => {
               const stale = isStale(r.date_derniere_maj)
               return (
-                <tr key={r.slug} style={{ borderTop: '1px solid #f1f5f9' }}>
+                <tr key={`${r.slug}-${r.verticale}`} style={{ borderTop: '1px solid #f1f5f9' }}>
                   <td style={td}>
-                    <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                      {r.seo_title_override || r.slug}
-                    </div>
-                    {r.seo_title_override && (
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.slug}</div>
+                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{r.slug}</div>
+                    {r.groupe_appartenance && (
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.groupe_appartenance}</div>
                     )}
                   </td>
                   <td style={td}>
-                    <StatutBadge value={r.statut_page} />
+                    <StatutBadge value={r.statut_page as 'publiee' | 'brouillon' | 'archivee'} />
                   </td>
                   <td style={td}>
-                    <PartenaireBadge value={r.statut_partenaire} />
+                    <PartenaireBadge
+                      value={
+                        r.statut_partenaire as
+                          | 'partenaire_direct'
+                          | 'partenaire_indirect'
+                          | 'non_partenaire'
+                      }
+                    />
                   </td>
-                  <td style={td}>
-                    {r.niveaux_disponibles.length === 0 ? (
-                      <span style={{ color: '#cbd5e1', fontSize: 11 }}>—</span>
-                    ) : (
-                      r.niveaux_disponibles.map((n) => <NiveauPill key={n} value={n} />)
-                    )}
+                  <td
+                    style={{
+                      ...td,
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontWeight: 600,
+                      color: r.note_courtier != null ? '#0f172a' : '#cbd5e1',
+                    }}
+                  >
+                    {r.note_courtier != null ? `${r.note_courtier}/5` : '—'}
                   </td>
-                  <td style={td}>
-                    <span style={{ marginRight: 8, fontSize: 14 }}>
-                      {r.has_garanties ? '🟢' : '🔴'}
-                    </span>
-                    <span style={{ marginRight: 8, fontSize: 14 }}>
-                      {r.has_tarifs ? '🟢' : '🔴'}
-                    </span>
+                  <td
+                    style={{
+                      ...td,
+                      fontFamily: 'JetBrains Mono, monospace',
+                      color: r.prix_entree_marche != null ? '#0f172a' : '#cbd5e1',
+                    }}
+                  >
+                    {r.prix_entree_marche != null ? `${r.prix_entree_marche}€` : '—'}
                   </td>
                   <td style={td}>
                     <span
@@ -264,14 +302,14 @@ function Liste() {
                         display: 'inline-block',
                         padding: '2px 8px',
                         borderRadius: 10,
-                        background: r.nb_regles_reco > 0 ? '#dcfce7' : '#fee2e2',
-                        color: r.nb_regles_reco > 0 ? '#166534' : '#991b1b',
+                        background: (r.nb_regles_reco ?? 0) > 0 ? '#dcfce7' : '#fee2e2',
+                        color: (r.nb_regles_reco ?? 0) > 0 ? '#166534' : '#991b1b',
                         fontSize: 11,
                         fontWeight: 600,
                         fontFamily: 'JetBrains Mono, monospace',
                       }}
                     >
-                      {r.nb_regles_reco}
+                      {r.nb_regles_reco ?? 0}
                     </span>
                   </td>
                   <td

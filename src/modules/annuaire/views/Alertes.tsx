@@ -33,7 +33,6 @@ function Alertes() {
 
   const handleVerify = useCallback(
     async (slug: string) => {
-      // Optimistic
       setRows((prev) => prev.filter((r) => r.slug !== slug))
       try {
         await marquerVerifie(slug)
@@ -68,7 +67,7 @@ function Alertes() {
             fontSize: 14,
           }}
         >
-          ✓ Aucune alerte active. Toutes les fiches publiées sont à jour.
+          ✓ Aucune alerte active.
         </div>
       ) : (
         <div
@@ -83,6 +82,7 @@ function Alertes() {
             <thead>
               <tr style={{ color: '#64748b', fontSize: 11, fontWeight: 600 }}>
                 <th style={th}>Compagnie</th>
+                <th style={th}>Verticale</th>
                 <th style={th}>Type alerte</th>
                 <th style={th}>Dernière MAJ</th>
                 <th style={th}>Ancienneté</th>
@@ -94,15 +94,14 @@ function Alertes() {
                 const age = daysSince(r.date_derniere_maj)
                 const stale = age !== null && age > 90
                 return (
-                  <tr key={r.slug} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <tr
+                    key={`${r.slug}-${r.verticale}`}
+                    style={{ borderTop: '1px solid #f1f5f9' }}
+                  >
                     <td style={td}>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                        {r.seo_title_override || r.slug}
-                      </div>
-                      {r.seo_title_override && (
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.slug}</div>
-                      )}
+                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{r.slug}</div>
                     </td>
+                    <td style={{ ...td, fontSize: 12, color: '#64748b' }}>{r.verticale}</td>
                     <td style={td}>
                       {r.alerte_verif && (
                         <span
@@ -136,7 +135,13 @@ function Alertes() {
                         </span>
                       )}
                     </td>
-                    <td style={{ ...td, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+                    <td
+                      style={{
+                        ...td,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontSize: 12,
+                      }}
+                    >
                       {r.date_derniere_maj
                         ? new Date(r.date_derniere_maj).toLocaleDateString('fr-FR')
                         : '—'}
