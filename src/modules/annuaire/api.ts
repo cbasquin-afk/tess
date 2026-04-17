@@ -32,7 +32,7 @@ export async function fetchFicheEdit(slug: string): Promise<FicheEditResult> {
       .from('marque_verticale_mutuelle')
       .select(MUTUELLE_COLS)
       .eq('slug', slug)
-      .single(),
+      .maybeSingle(),
     supabase.from('annuaire_statut').select('*').eq('slug', slug).maybeSingle(),
     supabase
       .from('annuaire_formule_niveau')
