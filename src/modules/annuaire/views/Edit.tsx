@@ -20,7 +20,6 @@ import { ScoreBar } from '../components/ScoreBar'
 import {
   NIVEAUX,
   SITUATIONS,
-  VERTICALES_ANNUAIRE,
   type FormuleNiveau,
   type MutuelleEditableFields,
   type NiveauTessoria,
@@ -209,11 +208,20 @@ interface TabIdentiteProps {
 
 function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteProps) {
   const [form, setForm] = useState({
+    // annuaire_statut fields
     statut_page: (statut?.statut_page ?? 'brouillon') as StatutPage,
     statut_partenaire: (statut?.statut_partenaire ?? 'non_partenaire') as StatutPartenaire,
-    verticales: statut?.verticales ?? [],
     alerte_verif: statut?.alerte_verif ?? false,
     note_interne: statut?.note_interne ?? '',
+    avis_courtier_court: statut?.avis_courtier_court ?? '',
+    profil_ideal: statut?.profil_ideal ?? '',
+    points_forts_editorial: statut?.points_forts_editorial ?? [],
+    points_faibles: statut?.points_faibles ?? [],
+    groupe_appartenance: statut?.groupe_appartenance ?? '',
+    annee_creation: statut?.annee_creation,
+    nb_assures: statut?.nb_assures ?? '',
+    positionnement_tarifaire: statut?.positionnement_tarifaire ?? '',
+    // marque_verticale_mutuelle fields
     prix_entree_marche: mutuelle.prix_entree_marche,
     prix_entree_age_label: mutuelle.prix_entree_age_label ?? '',
     note_courtier: mutuelle.note_courtier,
@@ -234,32 +242,19 @@ function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteP
 
   const originalStatut = statut?.statut_page ?? 'brouillon'
 
-  const toggleVerticale = (v: string) => {
-    setForm((prev) => ({
-      ...prev,
-      verticales: prev.verticales.includes(v)
-        ? prev.verticales.filter((x) => x !== v)
-        : [...prev.verticales, v],
-    }))
-  }
+  type ArrayKey = 'points_forts' | 'points_vigilance' | 'points_forts_editorial' | 'points_faibles'
 
-  const updatePointsArray = (
-    key: 'points_forts' | 'points_vigilance',
-    index: number,
-    value: string,
-  ) => {
+  const updatePointsArray = (key: ArrayKey, index: number, value: string) => {
     setForm((prev) => {
       const arr = [...(prev[key] ?? [])]
       arr[index] = value
       return { ...prev, [key]: arr }
     })
   }
-
-  const addPoint = (key: 'points_forts' | 'points_vigilance') => {
+  const addPoint = (key: ArrayKey) => {
     setForm((prev) => ({ ...prev, [key]: [...(prev[key] ?? []), ''] }))
   }
-
-  const removePoint = (key: 'points_forts' | 'points_vigilance', index: number) => {
+  const removePoint = (key: ArrayKey, index: number) => {
     setForm((prev) => ({
       ...prev,
       [key]: (prev[key] ?? []).filter((_, i) => i !== index),
@@ -272,11 +267,19 @@ function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteP
       await Promise.all([
         upsertStatut({
           slug,
+          verticale: 'mutuelle',
           statut_page: form.statut_page,
           statut_partenaire: form.statut_partenaire,
-          verticales: form.verticales,
           alerte_verif: form.alerte_verif,
           note_interne: form.note_interne || null,
+          avis_courtier_court: form.avis_courtier_court || null,
+          profil_ideal: form.profil_ideal || null,
+          points_forts_editorial: (form.points_forts_editorial ?? []).filter((p) => p.trim().length > 0),
+          points_faibles: (form.points_faibles ?? []).filter((p) => p.trim().length > 0),
+          groupe_appartenance: form.groupe_appartenance || null,
+          annee_creation: form.annee_creation ?? null,
+          nb_assures: form.nb_assures || null,
+          positionnement_tarifaire: form.positionnement_tarifaire || null,
         }),
         updateMutuelle(slug, {
           prix_entree_marche: form.prix_entree_marche,
@@ -291,8 +294,8 @@ function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteP
           seo_meta_override: form.seo_meta_override || null,
           analyse_courtier: form.analyse_courtier || null,
           ce_que_tessoria_en_pense: form.ce_que_tessoria_en_pense || null,
-          points_forts: form.points_forts.filter((p) => p.trim().length > 0),
-          points_vigilance: form.points_vigilance.filter((p) => p.trim().length > 0),
+          points_forts: (form.points_forts ?? []).filter((p) => p.trim().length > 0),
+          points_vigilance: (form.points_vigilance ?? []).filter((p) => p.trim().length > 0),
         }),
       ])
       onToast({ message: 'Identité sauvegardée', level: 'success' })
@@ -346,23 +349,6 @@ function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteP
             <option value="partenaire_indirect">Partenaire indirect</option>
             <option value="non_partenaire">Non partenaire</option>
           </select>
-        </Field>
-        <Field label="Verticales">
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {VERTICALES_ANNUAIRE.map((v) => (
-              <label
-                key={v}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.verticales.includes(v)}
-                  onChange={() => toggleVerticale(v)}
-                />
-                {v}
-              </label>
-            ))}
-          </div>
         </Field>
         <Field label="Alerte vérification">
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -486,6 +472,80 @@ function TabIdentite({ slug, mutuelle, statut, onReload, onToast }: TabIdentiteP
             />
             <span style={{ fontSize: 13 }}>Exclure des moteurs</span>
           </label>
+        </Field>
+      </Section>
+
+      <Section title="Données éditorial (annuaire_statut)">
+        <Field label="Avis courtier (court)" full>
+          <textarea
+            value={form.avis_courtier_court}
+            onChange={(e) => setForm({ ...form, avis_courtier_court: e.target.value })}
+            rows={3}
+            style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
+          />
+        </Field>
+        <Field label="Profil idéal" full>
+          <textarea
+            value={form.profil_ideal}
+            onChange={(e) => setForm({ ...form, profil_ideal: e.target.value })}
+            rows={2}
+            style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
+          />
+        </Field>
+        <Field label="Groupe d'appartenance">
+          <input
+            type="text"
+            value={form.groupe_appartenance}
+            onChange={(e) => setForm({ ...form, groupe_appartenance: e.target.value })}
+            placeholder="ex: AG2R La Mondiale"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Année de création">
+          <input
+            type="number"
+            value={form.annee_creation ?? ''}
+            onChange={(e) =>
+              setForm({ ...form, annee_creation: e.target.value ? Number(e.target.value) : null })
+            }
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Nb assurés">
+          <input
+            type="text"
+            value={form.nb_assures}
+            onChange={(e) => setForm({ ...form, nb_assures: e.target.value })}
+            placeholder="ex: 700 000"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Positionnement tarifaire">
+          <input
+            type="text"
+            value={form.positionnement_tarifaire}
+            onChange={(e) => setForm({ ...form, positionnement_tarifaire: e.target.value })}
+            placeholder="ex: milieu-haut de gamme"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Points forts éditorial" full>
+          <PointsArray
+            values={form.points_forts_editorial}
+            color="#10b981"
+            onChange={(i, v) => updatePointsArray('points_forts_editorial', i, v)}
+            onAdd={() => addPoint('points_forts_editorial')}
+            onRemove={(i) => removePoint('points_forts_editorial', i)}
+          />
+        </Field>
+        <Field label="Points faibles" full>
+          <PointsArray
+            values={form.points_faibles}
+            color="#ef4444"
+            onChange={(i, v) => updatePointsArray('points_faibles', i, v)}
+            onAdd={() => addPoint('points_faibles')}
+            onRemove={(i) => removePoint('points_faibles', i)}
+          />
         </Field>
       </Section>
 
