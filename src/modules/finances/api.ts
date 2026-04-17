@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/supabase'
 import type {
+  CAMensuelRow,
   ChargeMensuelle,
   CommissionDetail,
   CommissionMandataire,
@@ -169,7 +170,23 @@ export async function fetchRetractations(): Promise<RetractationRow[]> {
   }))
 }
 
-// ── Commissions détaillées pour un mois spécifique (drill-down CA) ──
+// ── CA mensuel détaillé (drill-down) ────────────────────────
+export async function fetchCAMensuelParMois(
+  annee: number,
+  mois: number,
+): Promise<CAMensuelRow[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_ca_mensuel')
+    .select('*')
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .order('categorie', { ascending: true })
+    .order('client', { ascending: true })
+  if (error) throw new Error(`tadmin_v_ca_mensuel: ${error.message}`)
+  return (data ?? []) as CAMensuelRow[]
+}
+
+// ── Ancien drill-down (conservé pour rétrocompatibilité) ────
 export async function fetchCommissionsParMois(
   annee: number,
   mois: number,

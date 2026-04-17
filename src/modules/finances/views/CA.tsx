@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useMemo, useState, type ChangeEvent } from 'react'
 import { useFinancesCtx } from '../context/FinancesContext'
-import { fetchCommissionsParMois } from '../api'
+import { fetchCAMensuelParMois } from '../api'
 import {
   tableStyle,
   trHead,
@@ -14,7 +14,7 @@ import {
   trBody,
   MONO,
 } from '../styles/tableTokens'
-import type { CAMensuel, CommissionDetail } from '../types'
+import type { CAMensuel, CAMensuelRow } from '../types'
 
 const MOIS_NOMS = [
   '',
@@ -75,28 +75,32 @@ interface AggregatedRow {
   total: number
 }
 
+const CATEGORIE_LABELS: Record<string, { label: string; color: string }> = {
+  acquisition: { label: 'Acquisitions du mois', color: '#1D9E75' },
+  differee: { label: "Com' différées & linéaires", color: '#378ADD' },
+  renouvellement: { label: 'Renouvellements', color: '#BA7517' },
+}
+
 function CA() {
   const { caMensuel, loading, error } = useFinancesCtx()
   const [mode, setMode] = useState<ViewMode>('mensuel')
   const [annee, setAnnee] = useState<number>(() => new Date().getFullYear())
 
-  // Drill-down state
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
-  const [details, setDetails] = useState<CommissionDetail[]>([])
+  const [details, setDetails] = useState<CAMensuelRow[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
 
   const now = new Date()
   const curYear = now.getFullYear()
   const curMonth = now.getMonth() + 1
 
-  // Années distinctes pour le select, tri DESC. Fallback année courante.
   const annees = useMemo<number[]>(() => {
     const set = new Set<number>()
     for (const r of caMensuel) set.add(r.annee)
     const arr = Array.from(set).sort((a, b) => b - a)
-    if (arr.length === 0) arr.push(new Date().getFullYear())
+    if (arr.length === 0) arr.push(curYear)
     return arr
-  }, [caMensuel])
+  }, [caMensuel, curYear])
 
   const effectiveAnnee = useMemo(
     () => (annees.includes(annee) ? annee : (annees[0] ?? annee)),
@@ -105,28 +109,22 @@ function CA() {
 
   const rows = useMemo<AggregatedRow[]>(() => {
     if (mode === 'mensuel') {
-      const yearRows = caMensuel
+      return caMensuel
         .filter((r) => r.annee === effectiveAnnee)
-        .sort((a, b) => a.mois - b.mois) // ASC : Janvier en haut
-      return yearRows.map((r) => ({
-        label: `${MOIS_NOMS[r.mois] ?? r.mois} ${r.annee}`,
-        annee: r.annee,
-        mois: r.mois,
-        nb_lignes: r.nb_lignes,
-        ca_societe: r.ca_societe,
-        frais: r.frais,
-        total: r.ca_societe + r.frais,
-      }))
+        .sort((a, b) => a.mois - b.mois)
+        .map((r) => ({
+          label: `${MOIS_NOMS[r.mois] ?? r.mois} ${r.annee}`,
+          annee: r.annee,
+          mois: r.mois,
+          nb_lignes: r.nb_lignes,
+          ca_societe: r.ca_societe,
+          frais: r.frais,
+          total: r.ca_societe + r.frais,
+        }))
     }
-
     if (mode === 'trimestriel') {
       const yearRows = caMensuel.filter((r) => r.annee === effectiveAnnee)
-      const quarters: Record<number, CAMensuel[]> = {
-        1: [],
-        2: [],
-        3: [],
-        4: [],
-      }
+      const quarters: Record<number, CAMensuel[]> = { 1: [], 2: [], 3: [], 4: [] }
       for (const r of yearRows) {
         const q = Math.ceil(r.mois / 3)
         if (q >= 1 && q <= 4) quarters[q]!.push(r)
@@ -146,15 +144,13 @@ function CA() {
         out.push({
           label: `T${q} ${effectiveAnnee}`,
           annee: effectiveAnnee,
-          mois: q, // quarter number
+          mois: q,
           ...acc,
           total: acc.ca_societe + acc.frais,
         })
       }
       return out
     }
-
-    // Annuel : toutes les années
     const map = new Map<number, AggregatedRow>()
     for (const r of caMensuel) {
       const ex = map.get(r.annee) ?? {
@@ -191,7 +187,6 @@ function CA() {
 
   const handleRowClick = useCallback(
     async (row: AggregatedRow) => {
-      // Only drill-down in mensuel mode
       if (mode !== 'mensuel') return
       const key = `${row.annee}-${row.mois}`
       if (expandedRow === key) {
@@ -201,8 +196,7 @@ function CA() {
       setExpandedRow(key)
       setDetailLoading(true)
       try {
-        const d = await fetchCommissionsParMois(row.annee, row.mois)
-        setDetails(d)
+        setDetails(await fetchCAMensuelParMois(row.annee, row.mois))
       } catch {
         setDetails([])
       } finally {
@@ -211,6 +205,17 @@ function CA() {
     },
     [expandedRow, mode],
   )
+
+  // Grouper les détails par catégorie
+  const detailsByCategorie = useMemo(() => {
+    const groups: Record<string, CAMensuelRow[]> = {}
+    for (const d of details) {
+      const cat = d.categorie ?? 'acquisition'
+      if (!groups[cat]) groups[cat] = []
+      groups[cat]!.push(d)
+    }
+    return groups
+  }, [details])
 
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
@@ -282,9 +287,7 @@ function CA() {
               style={inputStyle}
             >
               {annees.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
+                <option key={a} value={a}>{a}</option>
               ))}
             </select>
           </div>
@@ -307,15 +310,7 @@ function CA() {
         }}
       >
         {rows.length === 0 ? (
-          <div
-            style={{
-              color: '#94a3b8',
-              fontSize: 13,
-              fontStyle: 'italic',
-              textAlign: 'center',
-              padding: 24,
-            }}
-          >
+          <div style={{ color: '#94a3b8', fontSize: 13, fontStyle: 'italic', textAlign: 'center', padding: 24 }}>
             Pas de données pour cette période.
           </div>
         ) : (
@@ -340,268 +335,50 @@ function CA() {
               {rows.map((r) => {
                 const key = `${r.annee}-${r.mois}`
                 const isExpanded = expandedRow === key
-                const isCurrent =
-                  mode === 'mensuel' &&
-                  r.annee === curYear &&
-                  r.mois === curMonth
+                const isCurrent = mode === 'mensuel' && r.annee === curYear && r.mois === curMonth
                 const clickable = mode === 'mensuel'
                 return (
                   <Fragment key={key}>
                     <tr
-                      onClick={() => {
-                        if (clickable) void handleRowClick(r)
-                      }}
+                      onClick={() => { if (clickable) void handleRowClick(r) }}
                       style={{
                         ...trBody,
                         cursor: clickable ? 'pointer' : 'default',
                         background: isCurrent ? '#f0fdf4' : undefined,
                       }}
                     >
-                      <td
-                        style={{
-                          ...td,
-                          fontWeight: 600,
-                          color: '#0f172a',
-                        }}
-                      >
+                      <td style={{ ...td, fontWeight: 600, color: '#0f172a' }}>
                         {clickable && (
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              width: 16,
-                              fontSize: 10,
-                              color: '#94a3b8',
-                            }}
-                          >
+                          <span style={{ display: 'inline-block', width: 16, fontSize: 10, color: '#94a3b8' }}>
                             {isExpanded ? '▾' : '▸'}
                           </span>
                         )}
                         {r.label}
                         {isCurrent && (
-                          <span
-                            style={{
-                              marginLeft: 8,
-                              fontSize: 10,
-                              fontWeight: 700,
-                              color: '#1D9E75',
-                              background: '#dcfce7',
-                              padding: '2px 6px',
-                              borderRadius: 4,
-                            }}
-                          >
+                          <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#1D9E75', background: '#dcfce7', padding: '2px 6px', borderRadius: 4 }}>
                             En cours
                           </span>
                         )}
                       </td>
-                      <td
-                        style={{
-                          ...td,
-                          textAlign: 'right',
-                          color: '#94a3b8',
-                        }}
-                      >
-                        {r.nb_lignes}
-                      </td>
-                      <td
-                        style={{
-                          ...tdMontant,
-                          color: '#0f172a',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {fmtEur(r.ca_societe)}
-                      </td>
-                      <td style={{ ...tdMontant, color: '#BA7517' }}>
-                        {fmtEur(r.frais)}
-                      </td>
-                      <td
-                        style={{
-                          ...tdMontant,
-                          color: '#00C18B',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {fmtEur(r.total)}
-                      </td>
+                      <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{r.nb_lignes}</td>
+                      <td style={{ ...tdMontant, color: '#0f172a', fontWeight: 600 }}>{fmtEur(r.ca_societe)}</td>
+                      <td style={{ ...tdMontant, color: '#BA7517' }}>{fmtEur(r.frais)}</td>
+                      <td style={{ ...tdMontant, color: '#00C18B', fontWeight: 700 }}>{fmtEur(r.total)}</td>
                     </tr>
                     {isExpanded && (
                       <tr key={`${key}-detail`}>
-                        <td
-                          colSpan={5}
-                          style={{ padding: 0, background: '#f8fafc' }}
-                        >
-                          <div
-                            style={{
-                              borderTop: '1px solid #e2e8f0',
-                              padding: '8px 16px 12px',
-                            }}
-                          >
+                        <td colSpan={5} style={{ padding: 0, background: '#f8fafc' }}>
+                          <div style={{ borderTop: '1px solid #e2e8f0', padding: '8px 16px 12px' }}>
                             {detailLoading ? (
-                              <div
-                                style={{
-                                  color: '#64748b',
-                                  fontSize: 12,
-                                  padding: 8,
-                                }}
-                              >
+                              <div style={{ color: '#64748b', fontSize: 12, padding: 8 }}>
                                 Chargement…
                               </div>
                             ) : details.length === 0 ? (
-                              <div
-                                style={{
-                                  color: '#94a3b8',
-                                  fontSize: 12,
-                                  fontStyle: 'italic',
-                                  padding: 8,
-                                }}
-                              >
-                                Aucun contrat ce mois.
+                              <div style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic', padding: 8 }}>
+                                Aucune ligne ce mois.
                               </div>
                             ) : (
-                              <>
-                                <p
-                                  style={{
-                                    fontSize: 12,
-                                    color: '#64748b',
-                                    marginBottom: 8,
-                                    marginTop: 4,
-                                  }}
-                                >
-                                  {details.length} contrat
-                                  {details.length > 1 ? 's' : ''} ·{' '}
-                                  {r.annee}/
-                                  {String(r.mois).padStart(2, '0')}
-                                </p>
-                                <table
-                                  style={{
-                                    width: '100%',
-                                    fontSize: 12,
-                                    borderCollapse: 'collapse',
-                                  }}
-                                >
-                                  <thead>
-                                    <tr
-                                      style={{
-                                        color: '#64748b',
-                                        fontSize: 10,
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      <th style={subTh}>Client</th>
-                                      <th style={subTh}>Compagnie</th>
-                                      <th style={subTh}>Type com.</th>
-                                      <th
-                                        style={{
-                                          ...subTh,
-                                          textAlign: 'right',
-                                        }}
-                                      >
-                                        Cotisation/mois
-                                      </th>
-                                      <th style={subTh}>Date sig.</th>
-                                      <th
-                                        style={{
-                                          ...subTh,
-                                          textAlign: 'right',
-                                        }}
-                                      >
-                                        Com&apos; Tessoria
-                                      </th>
-                                      <th
-                                        style={{
-                                          ...subTh,
-                                          textAlign: 'right',
-                                        }}
-                                      >
-                                        Frais
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {details.map((d) => (
-                                      <tr
-                                        key={d.id}
-                                        style={{
-                                          borderTop: '1px solid #e5e7eb',
-                                        }}
-                                      >
-                                        <td style={subTd}>
-                                          <strong
-                                            style={{ color: '#0f172a' }}
-                                          >
-                                            {d.client}
-                                          </strong>
-                                        </td>
-                                        <td
-                                          style={{
-                                            ...subTd,
-                                            color: '#475569',
-                                          }}
-                                        >
-                                          {d.compagnie_assureur ?? '—'}
-                                        </td>
-                                        <td
-                                          style={{
-                                            ...subTd,
-                                            color: '#94a3b8',
-                                            fontSize: 10,
-                                          }}
-                                        >
-                                          {d.type_commission ?? '—'}
-                                        </td>
-                                        <td
-                                          style={{
-                                            ...subTd,
-                                            textAlign: 'right',
-                                            fontFamily: MONO,
-                                            color: '#475569',
-                                          }}
-                                        >
-                                          {d.cotisation_mensuelle
-                                            ? `${fmtEur(d.cotisation_mensuelle)}/m`
-                                            : '—'}
-                                        </td>
-                                        <td
-                                          style={{
-                                            ...subTd,
-                                            color: '#94a3b8',
-                                            fontFamily: MONO,
-                                            fontSize: 10,
-                                          }}
-                                        >
-                                          {fmtDate(d.date_signature)}
-                                        </td>
-                                        <td
-                                          style={{
-                                            ...subTd,
-                                            textAlign: 'right',
-                                            fontFamily: MONO,
-                                            color: '#0f172a',
-                                            fontWeight: 600,
-                                          }}
-                                        >
-                                          {fmtEur(d.montant_com_societe)}
-                                        </td>
-                                        <td
-                                          style={{
-                                            ...subTd,
-                                            textAlign: 'right',
-                                            fontFamily: MONO,
-                                            color:
-                                              d.montant_frais > 0
-                                                ? '#BA7517'
-                                                : '#cbd5e1',
-                                          }}
-                                        >
-                                          {d.montant_frais > 0
-                                            ? fmtEur(d.montant_frais)
-                                            : '—'}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </>
+                              <DrillDown groups={detailsByCategorie} />
                             )}
                           </div>
                         </td>
@@ -612,27 +389,93 @@ function CA() {
               })}
               <tr style={trFooter}>
                 <td style={tdFooterLabel}>Total</td>
-                <td
-                  style={{
-                    ...tdFooterMontant,
-                    color: '#0f172a',
-                    fontFamily: MONO,
-                  }}
-                >
-                  {totals.nb_lignes}
-                </td>
-                <td style={{ ...tdFooterMontant, color: '#0f172a' }}>
-                  {fmtEur(totals.ca_societe)}
-                </td>
-                <td style={{ ...tdFooterMontant, color: '#BA7517' }}>
-                  {fmtEur(totals.frais)}
-                </td>
+                <td style={{ ...tdFooterMontant, color: '#0f172a', fontFamily: MONO }}>{totals.nb_lignes}</td>
+                <td style={{ ...tdFooterMontant, color: '#0f172a' }}>{fmtEur(totals.ca_societe)}</td>
+                <td style={{ ...tdFooterMontant, color: '#BA7517' }}>{fmtEur(totals.frais)}</td>
                 <td style={tdFooterMontant}>{fmtEur(totals.total)}</td>
               </tr>
             </tbody>
           </table>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Drill-down en 3 catégories ──────────────────────────────
+function DrillDown({ groups }: { groups: Record<string, CAMensuelRow[]> }) {
+  const order = ['acquisition', 'differee', 'renouvellement'] as const
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {order.map((cat) => {
+        const rows = groups[cat]
+        if (!rows || rows.length === 0) return null
+        const info = CATEGORIE_LABELS[cat] ?? { label: cat, color: '#64748b' }
+        const subtotal = rows.reduce(
+          (s, r) => ({
+            com: s.com + Number(r.montant_com_societe || 0),
+            frais: s.frais + Number(r.montant_frais || 0),
+          }),
+          { com: 0, frais: 0 },
+        )
+        const showFrais = cat === 'acquisition'
+        return (
+          <div key={cat}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: info.color }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: info.color }}>
+                {info.label}
+              </span>
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                ({rows.length}) · {fmtEur(subtotal.com)}
+                {showFrais && subtotal.frais > 0 ? ` + ${fmtEur(subtotal.frais)} frais` : ''}
+              </span>
+            </div>
+            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ color: '#64748b', fontSize: 10, fontWeight: 600 }}>
+                  <th style={subTh}>Client</th>
+                  <th style={subTh}>Compagnie</th>
+                  <th style={subTh}>Type com.</th>
+                  {cat === 'differee' && <th style={subTh}>Mois sig.</th>}
+                  {showFrais && <th style={{ ...subTh, textAlign: 'right' }}>Cotis./mois</th>}
+                  <th style={{ ...subTh, textAlign: 'right' }}>Com&apos; Tessoria</th>
+                  {showFrais && <th style={{ ...subTh, textAlign: 'right' }}>Frais</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((d) => (
+                  <tr key={d.id} style={{ borderTop: '1px solid #e5e7eb' }}>
+                    <td style={subTd}>
+                      <strong style={{ color: '#0f172a' }}>{d.client}</strong>
+                    </td>
+                    <td style={{ ...subTd, color: '#475569' }}>{d.compagnie_assureur ?? '—'}</td>
+                    <td style={{ ...subTd, color: '#94a3b8', fontSize: 10 }}>{d.type_commission ?? '—'}</td>
+                    {cat === 'differee' && (
+                      <td style={{ ...subTd, color: '#94a3b8', fontFamily: MONO, fontSize: 10 }}>
+                        {MOIS_NOMS[d.mois_signature] ?? d.mois_signature} {d.annee_signature}
+                      </td>
+                    )}
+                    {showFrais && (
+                      <td style={{ ...subTd, textAlign: 'right', fontFamily: MONO, color: '#475569' }}>
+                        {d.cotisation_mensuelle ? `${fmtEur(Number(d.cotisation_mensuelle))}/m` : '—'}
+                      </td>
+                    )}
+                    <td style={{ ...subTd, textAlign: 'right', fontFamily: MONO, color: '#0f172a', fontWeight: 600 }}>
+                      {fmtEur(Number(d.montant_com_societe || 0))}
+                    </td>
+                    {showFrais && (
+                      <td style={{ ...subTd, textAlign: 'right', fontFamily: MONO, color: Number(d.montant_frais || 0) > 0 ? '#BA7517' : '#cbd5e1' }}>
+                        {Number(d.montant_frais || 0) > 0 ? fmtEur(Number(d.montant_frais)) : '—'}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
     </div>
   )
 }

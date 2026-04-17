@@ -193,8 +193,10 @@ function Mandataires() {
             nb_contrats: acc.nb_contrats + r.nb_contrats,
             com_societe: acc.com_societe + r.com_societe,
             com_mandataire: acc.com_mandataire + r.com_mandataire,
+            frais_service: acc.frais_service + (r.frais_service ?? 0),
+            frais_mandataire: acc.frais_mandataire + (r.frais_mandataire ?? 0),
           }),
-          { nb_contrats: 0, com_societe: 0, com_mandataire: 0 },
+          { nb_contrats: 0, com_societe: 0, com_mandataire: 0, frais_service: 0, frais_mandataire: 0 },
         )
 
         return (
@@ -208,10 +210,13 @@ function Mandataires() {
             ) : (
               <table style={{ ...tableStyle, tableLayout: 'auto' }}>
                 <colgroup>
-                  <col style={{ width: 200 }} />
-                  <col style={{ width: 110 }} />
-                  <col style={{ width: 150 }} />
-                  <col style={{ width: 160 }} />
+                  <col style={{ width: 180 }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 100 }} />
+                  <col style={{ width: 100 }} />
+                  <col style={{ width: 130 }} />
                 </colgroup>
                 <thead>
                   <tr style={trHead}>
@@ -219,6 +224,9 @@ function Mandataires() {
                     <th style={thRight}>Nb contrats</th>
                     <th style={thRight}>Com&apos; Tessoria</th>
                     <th style={thRight}>Com&apos; mandataire</th>
+                    <th style={thRight}>Frais serv.</th>
+                    <th style={thRight}>Com&apos; frais 40%</th>
+                    <th style={thRight}>Total à payer</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -311,12 +319,27 @@ function Mandataires() {
                           >
                             {fmtEur(r.com_mandataire)}
                           </td>
+                          <td style={{ ...tdMontant, color: '#64748b' }}>
+                            {fmtEur(r.frais_service ?? 0)}
+                          </td>
+                          <td style={{ ...tdMontant, color: '#BA7517' }}>
+                            {fmtEur(r.frais_mandataire ?? 0)}
+                          </td>
+                          <td
+                            style={{
+                              ...tdMontant,
+                              color: '#0f172a',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {fmtEur(r.com_mandataire + (r.frais_mandataire ?? 0))}
+                          </td>
                         </tr>
 
                         {isExpanded && (
                           <tr>
                             <td
-                              colSpan={4}
+                              colSpan={7}
                               style={{
                                 padding: 0,
                                 background: '#f8fafc',
@@ -416,6 +439,22 @@ function Mandataires() {
                                               }}
                                             >
                                               Com&apos; mandataire
+                                            </th>
+                                            <th
+                                              style={{
+                                                ...subTh,
+                                                textAlign: 'right',
+                                              }}
+                                            >
+                                              Frais
+                                            </th>
+                                            <th
+                                              style={{
+                                                ...subTh,
+                                                textAlign: 'right',
+                                              }}
+                                            >
+                                              Com&apos; frais
                                             </th>
                                           </tr>
                                         </thead>
@@ -522,6 +561,31 @@ function Mandataires() {
                                                   d.montant_com_mandataire,
                                                 )}
                                               </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  textAlign: 'right',
+                                                  fontFamily: MONO,
+                                                  color: '#64748b',
+                                                }}
+                                              >
+                                                {(d.montant_frais ?? 0) > 0
+                                                  ? fmtEur(d.montant_frais ?? 0)
+                                                  : '—'}
+                                              </td>
+                                              <td
+                                                style={{
+                                                  ...subTd,
+                                                  textAlign: 'right',
+                                                  fontFamily: MONO,
+                                                  color: '#BA7517',
+                                                  fontWeight: 600,
+                                                }}
+                                              >
+                                                {(d.montant_frais_mandataire ?? 0) > 0
+                                                  ? fmtEur(d.montant_frais_mandataire ?? 0)
+                                                  : '—'}
+                                              </td>
                                             </tr>
                                           ))}
                                         </tbody>
@@ -538,24 +602,23 @@ function Mandataires() {
                   })}
                   <tr style={trFooter}>
                     <td style={tdFooterLabel}>Total {com.prenom}</td>
-                    <td
-                      style={{
-                        ...tdFooterMontant,
-                        color: '#0f172a',
-                      }}
-                    >
+                    <td style={{ ...tdFooterMontant, color: '#0f172a' }}>
                       {totals.nb_contrats}
                     </td>
-                    <td
-                      style={{
-                        ...tdFooterMontant,
-                        color: '#0f172a',
-                      }}
-                    >
+                    <td style={{ ...tdFooterMontant, color: '#0f172a' }}>
                       {fmtEur(totals.com_societe)}
                     </td>
                     <td style={tdFooterMontant}>
                       {fmtEur(totals.com_mandataire)}
+                    </td>
+                    <td style={{ ...tdFooterMontant, color: '#64748b' }}>
+                      {fmtEur(totals.frais_service)}
+                    </td>
+                    <td style={{ ...tdFooterMontant, color: '#BA7517' }}>
+                      {fmtEur(totals.frais_mandataire)}
+                    </td>
+                    <td style={{ ...tdFooterMontant, color: '#0f172a' }}>
+                      {fmtEur(totals.com_mandataire + totals.frais_mandataire)}
                     </td>
                   </tr>
                 </tbody>

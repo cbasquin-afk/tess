@@ -110,6 +110,8 @@ export interface CommissionMandataire {
   nb_contrats: number
   com_societe: number
   com_mandataire: number
+  frais_service: number
+  frais_mandataire: number
 }
 
 // ── Vue tadmin_v_commissions_mandataires_detail ──────────────
@@ -128,9 +130,34 @@ export interface CommissionMandataireDetail {
   source: string | null
   date_signature: string | null
   cotisation_mensuelle: number
+  workflow_statut: string | null
   montant_com_societe: number
   montant_com_mandataire: number
+  montant_frais: number
+  montant_frais_mandataire: number
   taux_mandataire_pct: number
+}
+
+// ── Vue tadmin_v_ca_mensuel ─────────────────────────────────
+export interface CAMensuelRow {
+  id: string
+  contrat_id: string
+  annee: number
+  mois: number
+  type_ligne: string
+  categorie: 'acquisition' | 'differee' | 'renouvellement'
+  annee_signature: number
+  mois_signature: number
+  montant_com_societe: number
+  montant_frais: number
+  montant_com_mandataire: number
+  client: string
+  compagnie_assureur: string | null
+  type_commission: string | null
+  cotisation_mensuelle: number | null
+  frais_service: number | null
+  date_signature: string | null
+  commercial_prenom: string | null
 }
 
 // Lecture depuis tadmin_v_versements (vide pour l'instant)
