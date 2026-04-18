@@ -61,6 +61,7 @@ const ADMIN_LINKS = [
 
 const ANNUAIRE_LINKS = [
   { path: '/annuaire', label: '📋 Toutes les fiches' },
+  { path: '/annuaire/statut', label: '⚙️ Statut' },
   { path: '/annuaire/alertes', label: '⚠️ Alertes' },
 ] as const
 
