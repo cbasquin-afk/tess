@@ -185,12 +185,23 @@ export async function marquerVerifie(
 }
 
 // ── Statut des marques (vue v_marque_statut + RPCs) ─────────
+function toError(raw: unknown, fallback: string): Error {
+  if (raw instanceof Error) return raw
+  if (raw && typeof raw === 'object') {
+    const o = raw as { message?: string; details?: string; hint?: string; code?: string }
+    const msg = o.message || o.details || o.hint || fallback
+    const err = new Error(o.code ? `[${o.code}] ${msg}` : msg)
+    return err
+  }
+  return new Error(fallback)
+}
+
 export async function fetchMarqueStatut(): Promise<MarqueStatutRow[]> {
   const { data, error } = await supabase
     .from('v_marque_statut')
     .select('*')
     .order('name', { ascending: true })
-  if (error) throw error
+  if (error) throw toError(error, 'Échec de la lecture de v_marque_statut')
   return (data ?? []) as MarqueStatutRow[]
 }
 
@@ -204,7 +215,7 @@ export async function setMarqueStatutVerticale(
     p_verticale: verticale,
     p_action: action,
   })
-  if (error) throw error
+  if (error) throw toError(error, `Échec de l'action "${action}" sur ${slug}/${verticale}`)
 }
 
 export async function setMarquePartenariat(
@@ -215,5 +226,5 @@ export async function setMarquePartenariat(
     p_slug: slug,
     p_est_partenaire: estPartenaire,
   })
-  if (error) throw error
+  if (error) throw toError(error, `Échec de la bascule partenariat pour ${slug}`)
 }
