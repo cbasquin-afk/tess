@@ -229,6 +229,24 @@ function Liste() {
         <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
           {filtered.length} / {rows.length} fiches
         </span>
+
+        <Link
+          to="/annuaire/statut"
+          style={{
+            height: 34,
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '0 10px',
+            border: '1px solid #e5e7eb',
+            borderRadius: 6,
+            background: '#fff',
+            color: '#1f2937',
+            fontSize: 13,
+            textDecoration: 'none',
+          }}
+        >
+          ⚙ Statut des marques
+        </Link>
       </div>
 
       {/* Table */}

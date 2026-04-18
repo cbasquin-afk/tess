@@ -155,3 +155,55 @@ export interface MutuelleEditableFields {
   noindex: boolean
   updated_at: string
 }
+
+// ============================================================
+// Statut du panneau TessAnnuaire (vue v_marque_statut)
+// ============================================================
+
+export const VERTICALES_STATUT = [
+  'mutuelle',
+  'tns',
+  'obseques',
+  'emprunteur',
+  'animaux',
+  'prevoyance_tns',
+  'frontalier',
+] as const
+export type VerticaleStatut = (typeof VERTICALES_STATUT)[number]
+
+export const VERTICALE_STATUT_LABELS: Record<VerticaleStatut, string> = {
+  mutuelle: 'Mutuelle',
+  tns: 'TNS',
+  obseques: 'Obsèques',
+  emprunteur: 'Emprunteur',
+  animaux: 'Animaux',
+  prevoyance_tns: 'Prév. TNS',
+  frontalier: 'Frontalier',
+}
+
+export const VERTICALE_STATUT_SHORT: Record<VerticaleStatut, string> = {
+  mutuelle: 'Mut',
+  tns: 'TNS',
+  obseques: 'Obs',
+  emprunteur: 'Emp',
+  animaux: 'Ani',
+  prevoyance_tns: 'Prév',
+  frontalier: 'Fron',
+}
+
+export type StatutCellule = 'publie' | 'brouillon' | 'absent' | 'incoherent'
+export type TypeIncoherence = 'coquille' | 'orphelin' | null
+export type ActionStatut = 'publier' | 'brouillon' | 'desactiver'
+
+export type MarqueStatutRow = {
+  slug: string
+  name: string
+  category: string | null
+  est_partenaire: boolean
+  verticale: VerticaleStatut
+  core_active: boolean
+  editorial_existe: boolean
+  noindex: boolean
+  statut: StatutCellule
+  type_incoherence: TypeIncoherence
+}

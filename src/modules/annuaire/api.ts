@@ -1,11 +1,14 @@
 import { supabase } from '@/shared/supabase'
 import type {
+  ActionStatut,
   AnnuaireRow,
   AnnuaireStatut,
   FormuleNiveau,
+  MarqueStatutRow,
   MutuelleEditableFields,
   NiveauTessoria,
   RecommandationRule,
+  VerticaleStatut,
 } from './types'
 
 const MUTUELLE_COLS =
@@ -179,4 +182,38 @@ export async function marquerVerifie(
       { onConflict: 'slug,verticale' },
     )
   if (error) throw new Error(`marquer verifie: ${error.message}`)
+}
+
+// ── Statut des marques (vue v_marque_statut + RPCs) ─────────
+export async function fetchMarqueStatut(): Promise<MarqueStatutRow[]> {
+  const { data, error } = await supabase
+    .from('v_marque_statut')
+    .select('*')
+    .order('name', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as MarqueStatutRow[]
+}
+
+export async function setMarqueStatutVerticale(
+  slug: string,
+  verticale: VerticaleStatut,
+  action: ActionStatut,
+): Promise<void> {
+  const { error } = await supabase.rpc('set_marque_statut_verticale', {
+    p_slug: slug,
+    p_verticale: verticale,
+    p_action: action,
+  })
+  if (error) throw error
+}
+
+export async function setMarquePartenariat(
+  slug: string,
+  estPartenaire: boolean,
+): Promise<void> {
+  const { error } = await supabase.rpc('set_marque_partenariat', {
+    p_slug: slug,
+    p_est_partenaire: estPartenaire,
+  })
+  if (error) throw error
 }
