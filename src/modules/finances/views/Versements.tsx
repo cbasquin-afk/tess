@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'rea
 import { useNavigate } from 'react-router-dom'
 import { Badge, Modal } from '@/shared/ui'
 import {
+  fetchBordereaux,
+  fetchContratsNonPayes,
   fetchVersementsAttendus,
   fetchVersementsAttendusDetail,
-  fetchBordereaux,
+  updateRaisonNonPaiement,
 } from '../api'
 import {
   tableStyle,
@@ -19,7 +21,12 @@ import {
   trBody,
   MONO,
 } from '../styles/tableTokens'
-import type { VersementAttendu, VersementAttenduDetail, VersementBordereau } from '../types'
+import type {
+  ContratNonPaye,
+  VersementAttendu,
+  VersementAttenduDetail,
+  VersementBordereau,
+} from '../types'
 import { GROSSISTES } from '../types'
 import { VersementsUploadModal } from '../components/VersementsUploadModal'
 
@@ -77,7 +84,9 @@ interface PeriodGroup {
   total: number
 }
 
-type VersementsTab = 'attendus' | 'bordereaux'
+type VersementsTab = 'attendus' | 'bordereaux' | 'non_payes'
+type RetardFilter = 'tous' | '30' | '60' | '90'
+type RaisonFilter = 'tous' | 'avec' | 'sans'
 
 function Versements() {
   const navigate = useNavigate()
@@ -94,6 +103,14 @@ function Versements() {
   const [showUpload, setShowUpload] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
+  // Non payés tab state
+  const [nonPayes, setNonPayes] = useState<ContratNonPaye[]>([])
+  const [npLoading, setNpLoading] = useState(false)
+  const [npCompagnieFiltre, setNpCompagnieFiltre] = useState<string>('')
+  const [npRetardFiltre, setNpRetardFiltre] = useState<RetardFilter>('tous')
+  const [npRaisonFiltre, setNpRaisonFiltre] = useState<RaisonFilter>('tous')
+  const [npEdits, setNpEdits] = useState<Record<string, { raison: string; action: string }>>({})
+
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 4500)
@@ -108,6 +125,26 @@ function Versements() {
       // silent
     } finally {
       setBordLoading(false)
+    }
+  }, [])
+
+  const loadNonPayes = useCallback(async () => {
+    setNpLoading(true)
+    try {
+      const rows = await fetchContratsNonPayes()
+      setNonPayes(rows)
+      const init: Record<string, { raison: string; action: string }> = {}
+      for (const r of rows) {
+        init[r.commission_prevue_id] = {
+          raison: r.raison_non_paiement ?? '',
+          action: r.action_prise ?? '',
+        }
+      }
+      setNpEdits(init)
+    } catch {
+      // silent
+    } finally {
+      setNpLoading(false)
     }
   }, [])
 
@@ -187,6 +224,86 @@ function Versements() {
     return drillData.filter((d) => d.type_ligne === drillFilter)
   }, [drillData, drillFilter])
 
+  const npCompagnies = useMemo(() => {
+    const set = new Set<string>()
+    for (const r of nonPayes) set.add(r.compagnie)
+    return Array.from(set).sort()
+  }, [nonPayes])
+
+  const npFiltered = useMemo(() => {
+    return nonPayes.filter((r) => {
+      if (npCompagnieFiltre && r.compagnie !== npCompagnieFiltre) return false
+      if (npRetardFiltre === '30' && r.jours_retard <= 30) return false
+      if (npRetardFiltre === '60' && r.jours_retard <= 60) return false
+      if (npRetardFiltre === '90' && r.jours_retard <= 90) return false
+      if (npRaisonFiltre === 'avec' && !r.raison_non_paiement) return false
+      if (npRaisonFiltre === 'sans' && r.raison_non_paiement) return false
+      return true
+    })
+  }, [nonPayes, npCompagnieFiltre, npRetardFiltre, npRaisonFiltre])
+
+  const npKpis = useMemo(() => {
+    const total = npFiltered.reduce((s, r) => s + (r.montant_attendu ?? 0), 0)
+    const avgRetard = npFiltered.length
+      ? Math.round(npFiltered.reduce((s, r) => s + r.jours_retard, 0) / npFiltered.length)
+      : 0
+    return { nb: npFiltered.length, total, avgRetard }
+  }, [npFiltered])
+
+  const handleSaveRaison = useCallback(
+    async (id: string) => {
+      const e = npEdits[id]
+      if (!e) return
+      try {
+        await updateRaisonNonPaiement(
+          id,
+          e.raison.trim() || null,
+          e.action.trim() || null,
+        )
+        setNonPayes((prev) =>
+          prev.map((r) =>
+            r.commission_prevue_id === id
+              ? {
+                  ...r,
+                  raison_non_paiement: e.raison.trim() || null,
+                  action_prise: e.action.trim() || null,
+                }
+              : r,
+          ),
+        )
+      } catch (err) {
+        setToast(`Erreur : ${err instanceof Error ? err.message : String(err)}`)
+      }
+    },
+    [npEdits],
+  )
+
+  const exportNonPayesCsv = useCallback(() => {
+    const headers = [
+      'Année', 'Mois', 'Compagnie', 'Client', 'Commercial',
+      'Type contrat', 'Date signature', 'Montant attendu', 'Jours retard',
+      'Raison', 'Action prise',
+    ]
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const rows = npFiltered.map((r) => [
+      r.annee, r.mois, r.compagnie, r.client, r.commercial_prenom ?? '',
+      r.type_contrat ?? '', r.date_signature ?? '',
+      (r.montant_attendu ?? 0).toFixed(2), r.jours_retard,
+      r.raison_non_paiement ?? '', r.action_prise ?? '',
+    ].map(esc).join(';'))
+    const csv = '\uFEFF' + [headers.join(';'), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `contrats-non-payes-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [npFiltered])
+
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
 
@@ -204,12 +321,14 @@ function Versements() {
         {([
           { id: 'attendus' as const, label: 'Attendus' },
           { id: 'bordereaux' as const, label: 'Bordereaux reçus' },
+          { id: 'non_payes' as const, label: 'Contrats non payés' },
         ]).map((tab) => (
           <button
             key={tab.id}
             onClick={() => {
               setActiveTab(tab.id)
               if (tab.id === 'bordereaux') void loadBordereaux()
+              if (tab.id === 'non_payes') void loadNonPayes()
             }}
             style={{
               padding: '10px 20px',
@@ -362,6 +481,209 @@ function Versements() {
               navigate(`/finances/versements/bordereau/${bordereauId}`)
             }}
           />
+        </div>
+      )}
+
+      {/* Onglet Contrats non payés */}
+      {activeTab === 'non_payes' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* KPIs */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={kpiCard}>
+              <div style={kpiLabel}>Contrats non payés</div>
+              <div style={kpiValue}>{npKpis.nb}</div>
+            </div>
+            <div style={kpiCard}>
+              <div style={kpiLabel}>Montant manquant</div>
+              <div style={{ ...kpiValue, color: '#dc2626' }}>{fmtEur(npKpis.total)}</div>
+            </div>
+            <div style={kpiCard}>
+              <div style={kpiLabel}>Retard moyen</div>
+              <div style={kpiValue}>{npKpis.avgRetard} j</div>
+            </div>
+          </div>
+
+          {/* Filtres */}
+          <div
+            style={{
+              background: '#fff',
+              border: '1px solid #e2e8f0',
+              borderRadius: 10,
+              padding: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={labelStyle}>Compagnie</label>
+              <select
+                value={npCompagnieFiltre}
+                onChange={(e) => setNpCompagnieFiltre(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Toutes</option>
+                {npCompagnies.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={labelStyle}>Retard</label>
+              <select
+                value={npRetardFiltre}
+                onChange={(e) => setNpRetardFiltre(e.target.value as RetardFilter)}
+                style={inputStyle}
+              >
+                <option value="tous">Tous</option>
+                <option value="30">&gt; 30 jours</option>
+                <option value="60">&gt; 60 jours</option>
+                <option value="90">&gt; 90 jours</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={labelStyle}>Raison</label>
+              <select
+                value={npRaisonFiltre}
+                onChange={(e) => setNpRaisonFiltre(e.target.value as RaisonFilter)}
+                style={inputStyle}
+              >
+                <option value="tous">Toutes</option>
+                <option value="avec">Avec raison</option>
+                <option value="sans">Sans raison</option>
+              </select>
+            </div>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={exportNonPayesCsv}
+              style={{
+                padding: '6px 12px',
+                background: '#1f3a8a',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Export CSV
+            </button>
+          </div>
+
+          {npLoading ? (
+            <div style={{ color: '#64748b', fontSize: 13 }}>Chargement…</div>
+          ) : npFiltered.length === 0 ? (
+            <div
+              style={{
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 10,
+                padding: 32,
+                textAlign: 'center',
+                color: '#94a3b8',
+                fontSize: 13,
+              }}
+            >
+              Aucun contrat non payé pour ces filtres.
+            </div>
+          ) : (
+            <div
+              style={{
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 10,
+                padding: 18,
+                overflowX: 'auto',
+              }}
+            >
+              <table style={{ ...tableStyle, tableLayout: 'auto' }}>
+                <thead>
+                  <tr style={trHead}>
+                    <th style={th}>Période</th>
+                    <th style={th}>Compagnie</th>
+                    <th style={th}>Client</th>
+                    <th style={th}>Commercial</th>
+                    <th style={th}>Type</th>
+                    <th style={th}>Date sig.</th>
+                    <th style={thRight}>Attendu</th>
+                    <th style={thRight}>Retard</th>
+                    <th style={th}>Raison</th>
+                    <th style={th}>Action prise</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {npFiltered.map((r) => {
+                    const edit = npEdits[r.commission_prevue_id] ?? { raison: '', action: '' }
+                    const retardTone: 'success' | 'warning' | 'danger' =
+                      r.jours_retard < 30 ? 'success'
+                      : r.jours_retard < 60 ? 'warning'
+                      : 'danger'
+                    return (
+                      <tr key={r.commission_prevue_id} style={trBody}>
+                        <td style={td}>{MOIS_NOMS[r.mois]} {r.annee}</td>
+                        <td style={{ ...td, fontWeight: 600, color: '#0f172a' }}>
+                          {r.compagnie}
+                          <span style={{ marginLeft: 6 }}>
+                            <Badge tone={isGrossiste(r.compagnie) ? 'info' : 'neutral'}>
+                              {isGrossiste(r.compagnie) ? 'G' : 'D'}
+                            </Badge>
+                          </span>
+                        </td>
+                        <td style={td}>{r.client}</td>
+                        <td style={{ ...td, color: '#475569' }}>{r.commercial_prenom ?? '—'}</td>
+                        <td style={{ ...td, color: '#475569' }}>{r.type_contrat ?? '—'}</td>
+                        <td style={{ ...td, color: '#94a3b8', fontFamily: MONO, fontSize: 11 }}>
+                          {fmtDate(r.date_signature)}
+                        </td>
+                        <td style={tdMontant}>{fmtEur(r.montant_attendu ?? 0)}</td>
+                        <td style={{ ...td, textAlign: 'right' }}>
+                          <Badge tone={retardTone}>{r.jours_retard} j</Badge>
+                        </td>
+                        <td style={td}>
+                          <textarea
+                            value={edit.raison}
+                            onChange={(e) =>
+                              setNpEdits((prev) => ({
+                                ...prev,
+                                [r.commission_prevue_id]: {
+                                  ...prev[r.commission_prevue_id],
+                                  raison: e.target.value,
+                                },
+                              }))
+                            }
+                            onBlur={() => void handleSaveRaison(r.commission_prevue_id)}
+                            rows={2}
+                            style={textareaStyle}
+                            placeholder="Raison…"
+                          />
+                        </td>
+                        <td style={td}>
+                          <textarea
+                            value={edit.action}
+                            onChange={(e) =>
+                              setNpEdits((prev) => ({
+                                ...prev,
+                                [r.commission_prevue_id]: {
+                                  ...prev[r.commission_prevue_id],
+                                  action: e.target.value,
+                                },
+                              }))
+                            }
+                            onBlur={() => void handleSaveRaison(r.commission_prevue_id)}
+                            rows={2}
+                            style={textareaStyle}
+                            placeholder="Action…"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -620,6 +942,36 @@ const subTh: React.CSSProperties = {
 }
 const subTd: React.CSSProperties = { padding: '6px 8px' }
 const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#64748b' }
+const kpiCard: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 10,
+  padding: 14,
+  minWidth: 160,
+  flex: '1 1 160px',
+}
+const kpiLabel: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#64748b',
+  marginBottom: 4,
+}
+const kpiValue: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: 22,
+  fontWeight: 700,
+  color: '#0f172a',
+}
+const textareaStyle: React.CSSProperties = {
+  width: '100%',
+  minWidth: 140,
+  padding: '4px 6px',
+  border: '1px solid #e5e7eb',
+  borderRadius: 4,
+  fontSize: 11,
+  fontFamily: 'inherit',
+  resize: 'vertical',
+}
 const inputStyle: React.CSSProperties = {
   background: '#f9fafb',
   border: '1px solid #d1d5db',

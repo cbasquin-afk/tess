@@ -305,6 +305,37 @@ export const COMPAGNIES_BORDEREAU = [
   'ALPTIS', 'GSMC', 'CEGEMA', 'SWISSLIFE', 'APICIL', 'HENNER',
 ] as const
 
+// ── Config compagnie (tadmin_v_versements_config) ─────────────
+export type CompagnieFormat = 'pdf_ia' | 'csv' | 'manuel'
+
+export interface VersementConfigCompagnie {
+  compagnie: string
+  code_courtier: string | null
+  format: CompagnieFormat
+  prompt_extraction: string | null
+  notes: string | null
+  updated_at: string | null
+}
+
+// ── Vue tadmin_v_contrats_non_payes ──────────────────────────
+export interface ContratNonPaye {
+  commission_prevue_id: string
+  contrat_id: string
+  annee: number
+  mois: number
+  type_ligne: 'commission' | 'renouvellement'
+  montant_attendu: number
+  client: string
+  compagnie: string
+  type_contrat: string | null
+  date_signature: string | null
+  cotisation_mensuelle: number | null
+  commercial_prenom: string | null
+  jours_retard: number
+  raison_non_paiement: string | null
+  action_prise: string | null
+}
+
 // ── Vue finances_v_factures_mandataires ─────────────────────
 export type StatutFacture = 'a_generer' | 'generee' | 'envoyee' | 'payee'
 

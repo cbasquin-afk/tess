@@ -1,7 +1,9 @@
-import { useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Modal, Button } from '@/shared/ui'
 import { supabase } from '@/shared/supabase'
 import { COMPAGNIES_BORDEREAU } from '../types'
+import type { CompagnieFormat, VersementConfigCompagnie } from '../types'
+import { fetchConfigCompagnies } from '../api'
 
 const MOIS_NOMS = [
   '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -14,6 +16,13 @@ interface Props {
   onSuccess: (bordereauId: string, summary: string) => void
 }
 
+function detectFormatFromFile(file: File): 'csv' | 'pdf' | null {
+  const name = file.name.toLowerCase()
+  if (name.endsWith('.csv')) return 'csv'
+  if (name.endsWith('.pdf')) return 'pdf'
+  return null
+}
+
 export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
   const now = new Date()
   const [file, setFile] = useState<File | null>(null)
@@ -22,9 +31,40 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
   const [mois, setMois] = useState(now.getMonth() + 1)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [configs, setConfigs] = useState<VersementConfigCompagnie[]>([])
+
+  useEffect(() => {
+    if (!open) return
+    fetchConfigCompagnies()
+      .then(setConfigs)
+      .catch(() => setConfigs([]))
+  }, [open])
+
+  const configMap = useMemo(() => {
+    const m = new Map<string, VersementConfigCompagnie>()
+    for (const c of configs) m.set(c.compagnie, c)
+    return m
+  }, [configs])
+
+  const selectedFormat: CompagnieFormat | null = configMap.get(compagnie)?.format ?? null
+  const fileFormat = file ? detectFormatFromFile(file) : null
+
+  const expectedExt: 'csv' | 'pdf' | null =
+    selectedFormat === 'csv' ? 'csv' :
+    selectedFormat === 'pdf_ia' ? 'pdf' :
+    null
+
+  const mismatchMsg =
+    file && expectedExt && fileFormat && expectedExt !== fileFormat
+      ? `Le fichier est ${fileFormat.toUpperCase()} mais ${compagnie} attend ${expectedExt.toUpperCase()}.`
+      : null
+
+  const isManuel = selectedFormat === 'manuel'
 
   const handleSubmit = async () => {
     if (!file) return
+    if (isManuel) return
+    if (mismatchMsg) return
     setSending(true)
     setError(null)
     try {
@@ -36,18 +76,17 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
       }
       const file_base64 = btoa(binary)
 
-      const { data, error: err } = await supabase.functions.invoke(
-        'versements-parse-csv',
-        {
-          body: {
-            file_base64,
-            file_name: file.name,
-            compagnie_bordereau: compagnie,
-            annee,
-            mois,
-          },
+      const fn = fileFormat === 'pdf' ? 'versements-parse-pdf' : 'versements-parse-csv'
+
+      const { data, error: err } = await supabase.functions.invoke(fn, {
+        body: {
+          file_base64,
+          file_name: file.name,
+          compagnie_bordereau: compagnie,
+          annee,
+          mois,
         },
-      )
+      })
 
       if (err) throw new Error(err.message)
 
@@ -57,6 +96,7 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
         nb_matchees: number
         nb_ambigues: number
         nb_non_matchees: number
+        warning?: string
       }
 
       const parts = [
@@ -64,6 +104,7 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
         `${d.nb_matchees} matchées`,
         d.nb_ambigues > 0 ? `${d.nb_ambigues} ambiguës` : null,
         d.nb_non_matchees > 0 ? `${d.nb_non_matchees} non matchées` : null,
+        d.warning ? `⚠ ${d.warning}` : null,
       ].filter(Boolean)
 
       onSuccess(d.bordereau_id, parts.join(' · '))
@@ -74,21 +115,13 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
     }
   }
 
-  return (
-    <Modal open={open} onClose={onClose} title="Uploader un bordereau CSV">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={labelStyle}>Fichier CSV</label>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setFile(e.target.files?.[0] ?? null)
-            }
-            style={{ fontSize: 13 }}
-          />
-        </div>
+  const title = fileFormat === 'pdf'
+    ? 'Uploader un bordereau PDF'
+    : 'Uploader un bordereau'
 
+  return (
+    <Modal open={open} onClose={onClose} title={title}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={labelStyle}>Compagnie bordereau</label>
           <select
@@ -100,7 +133,39 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
+          {selectedFormat && (
+            <div style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>
+              {selectedFormat === 'pdf_ia' && <>📄 Upload PDF — extraction IA (~30-60s)</>}
+              {selectedFormat === 'csv' && <>📊 Upload CSV</>}
+              {selectedFormat === 'manuel' && (
+                <span style={{ color: '#b45309' }}>
+                  Pas encore configuré — saisie manuelle à venir
+                </span>
+              )}
+            </div>
+          )}
         </div>
+
+        {!isManuel && (
+          <div>
+            <label style={labelStyle}>
+              Fichier {selectedFormat === 'pdf_ia' ? 'PDF' : selectedFormat === 'csv' ? 'CSV' : 'CSV ou PDF'}
+            </label>
+            <input
+              type="file"
+              accept=".csv,.pdf"
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setFile(e.target.files?.[0] ?? null)
+              }
+              style={{ fontSize: 13 }}
+            />
+            {mismatchMsg && (
+              <div style={{ marginTop: 6, fontSize: 11, color: '#dc2626' }}>
+                {mismatchMsg}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
@@ -133,6 +198,14 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
           <div style={{ color: '#dc2626', fontSize: 13 }}>Erreur : {error}</div>
         )}
 
+        {sending && (
+          <div style={{ color: '#1f3a8a', fontSize: 12, fontWeight: 500 }}>
+            {fileFormat === 'pdf'
+              ? 'Extraction IA du PDF en cours (30-60s)…'
+              : 'Parsing CSV…'}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <Button variant="secondary" onClick={onClose}>
             Annuler
@@ -140,7 +213,7 @@ export function VersementsUploadModal({ open, onClose, onSuccess }: Props) {
           <Button
             variant="primary"
             onClick={() => void handleSubmit()}
-            disabled={!file || sending}
+            disabled={!file || sending || isManuel || !!mismatchMsg}
           >
             {sending ? 'Upload en cours…' : 'Uploader et parser'}
           </Button>

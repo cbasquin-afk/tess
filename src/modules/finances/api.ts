@@ -7,6 +7,7 @@ import type {
   CommissionMandataireDetail,
   CommissionRow,
   ContratLean,
+  ContratNonPaye,
   FactureMandataire,
   MargeMensuelle,
   PortefeuilleRow,
@@ -17,6 +18,7 @@ import type {
   VersementAttendu,
   VersementAttenduDetail,
   VersementBordereau,
+  VersementConfigCompagnie,
   VersementLigne,
 } from './types'
 
@@ -317,6 +319,45 @@ export async function validerBordereau(bordereauId: string): Promise<void> {
     .update({ status: 'validated' })
     .eq('id', bordereauId)
   if (error) throw new Error(`valider bordereau: ${error.message}`)
+}
+
+// ── Config compagnie ────────────────────────────────────────
+export async function fetchConfigCompagnies(): Promise<VersementConfigCompagnie[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_versements_config')
+    .select('*')
+    .order('compagnie', { ascending: true })
+  if (error) throw new Error(`tadmin_v_versements_config: ${error.message}`)
+  return (data ?? []) as VersementConfigCompagnie[]
+}
+
+// ── Contrats non payés ──────────────────────────────────────
+export async function fetchContratsNonPayes(filters?: {
+  compagnie?: string
+  retard_min?: number
+  avec_raison?: boolean
+}): Promise<ContratNonPaye[]> {
+  let q = supabase.from('tadmin_v_contrats_non_payes').select('*')
+  if (filters?.compagnie) q = q.eq('compagnie', filters.compagnie)
+  if (filters?.retard_min != null) q = q.gte('jours_retard', filters.retard_min)
+  if (filters?.avec_raison === true) q = q.not('raison_non_paiement', 'is', null)
+  if (filters?.avec_raison === false) q = q.is('raison_non_paiement', null)
+  const { data, error } = await q.order('jours_retard', { ascending: false })
+  if (error) throw new Error(`tadmin_v_contrats_non_payes: ${error.message}`)
+  return (data ?? []) as ContratNonPaye[]
+}
+
+export async function updateRaisonNonPaiement(
+  commissionPrevueId: string,
+  raison: string | null,
+  action: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_update_raison_non_paiement', {
+    p_commission_prevue_id: commissionPrevueId,
+    p_raison: raison,
+    p_action: action,
+  })
+  if (error) throw new Error(`update raison non paiement: ${error.message}`)
 }
 
 export async function fetchContratsCompagnie(
