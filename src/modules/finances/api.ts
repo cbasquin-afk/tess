@@ -305,7 +305,6 @@ export async function updateLigneMatch(
   matchStatus: 'manuel' | 'non_match',
 ): Promise<void> {
   const { error } = await supabase
-    .schema('tadmin')
     .from('versements_lignes')
     .update({ contrat_id: contratId, match_status: matchStatus })
     .eq('id', ligneId)
@@ -314,7 +313,6 @@ export async function updateLigneMatch(
 
 export async function validerBordereau(bordereauId: string): Promise<void> {
   const { error } = await supabase
-    .schema('tadmin')
     .from('versements_bordereaux')
     .update({ status: 'validated' })
     .eq('id', bordereauId)

@@ -62,6 +62,15 @@ function VersementsReconciliation() {
     }
   }, [id])
 
+  const reloadLignes = useCallback(async () => {
+    if (!id) return
+    try {
+      setLignes(await fetchBordereauLignes(id))
+    } catch (e: unknown) {
+      setToast(`Erreur rechargement : ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [id])
+
   useEffect(() => {
     void load()
   }, [load])
@@ -88,12 +97,12 @@ function VersementsReconciliation() {
       try {
         await updateLigneMatch(ligneId, contratId, contratId ? 'manuel' : 'non_match')
         setToast('Ligne mise à jour')
-        await load()
+        await reloadLignes()
       } catch (e: unknown) {
         setToast(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
       }
     },
-    [load],
+    [reloadLignes],
   )
 
   const handleIgnore = useCallback(
@@ -101,12 +110,12 @@ function VersementsReconciliation() {
       try {
         await updateLigneMatch(ligneId, null, 'non_match')
         setToast('Ligne ignorée')
-        await load()
+        await reloadLignes()
       } catch (e: unknown) {
         setToast(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
       }
     },
-    [load],
+    [reloadLignes],
   )
 
   const handleValidate = useCallback(async () => {
