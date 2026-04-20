@@ -1,6 +1,6 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useInstances } from '../hooks/useInstances'
-import { resolveInstance, leverInstance, retracterContrat } from '../api'
+import { closeInstance, type InstanceCloseMotif } from '../api'
 import { ClientCell } from '../components/ClientCell'
 import type { TadminInstance } from '../types'
 
@@ -53,24 +53,17 @@ function joursDisplay(jours: number | null): string {
   return `${jours}j`
 }
 
-interface ResolveTarget {
-  id: string
-  client: string
-  gmailMessageId: string | null
-}
-
 function Instances() {
   const { instances, loading, error, reload } = useInstances()
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
-  const [resolveTarget, setResolveTarget] = useState<ResolveTarget | null>(
-    null,
-  )
-  const [resolving, setResolving] = useState(false)
-  const [resolveError, setResolveError] = useState<string | null>(null)
+  // IDs retirés optimistiquement — la ligne disparaît dès le clic,
+  // la liste se rafraîchit ensuite via reload().
+  const [pendingClose, setPendingClose] = useState<Set<string>>(new Set())
+  const [closeError, setCloseError] = useState<string | null>(null)
 
   const visible = useMemo<TadminInstance[]>(() => {
-    let rows = instances
+    let rows = instances.filter((r) => !pendingClose.has(r.id))
     if (filter === 'urgent') {
       // Fidèle au natif : ≤ 2 jours = urgent
       rows = rows.filter(
@@ -88,28 +81,34 @@ function Instances() {
       )
     }
     return rows
-  }, [instances, filter, search])
+  }, [instances, filter, search, pendingClose])
 
-  async function handleConfirmResolve() {
-    if (!resolveTarget) return
-    setResolving(true)
-    setResolveError(null)
+  async function handleClose(id: string, motif: InstanceCloseMotif) {
+    setCloseError(null)
+    setPendingClose((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
     try {
-      // Le natif passe en priorité gmailMsgId, sinon l'id
-      const key = resolveTarget.gmailMessageId || resolveTarget.id
-      await resolveInstance(key)
-      setResolveTarget(null)
+      await closeInstance(id, motif)
       await reload()
     } catch (e: unknown) {
-      setResolveError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setResolving(false)
+      setCloseError(e instanceof Error ? e.message : String(e))
+      // Annule le retrait optimiste si l'appel a échoué.
+      setPendingClose((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
     }
   }
 
   if (loading)
     return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
+
+  const nbOuvertes = instances.length - pendingClose.size
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -183,66 +182,23 @@ function Instances() {
         />
         <div style={{ flex: 1 }} />
         <span style={{ color: '#94a3b8', fontSize: 12 }}>
-          {visible.length} / {instances.length} ouverte
-          {instances.length > 1 ? 's' : ''}
+          {visible.length} / {nbOuvertes} ouverte
+          {nbOuvertes > 1 ? 's' : ''}
         </span>
       </div>
 
-      {/* Banner de confirmation Resolve (modal inline) */}
-      {resolveTarget && (
+      {closeError && (
         <div
           style={{
-            background: '#fef3c7',
-            border: '1px solid #fde68a',
-            borderRadius: 10,
-            padding: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap',
+            background: '#fee2e2',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            padding: 10,
+            fontSize: 12,
+            color: '#991b1b',
           }}
         >
-          <div style={{ flex: 1 }}>
-            <strong style={{ color: '#92400e' }}>
-              Résoudre l'instance pour {resolveTarget.client} ?
-            </strong>
-            <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>
-              Cette action passe l'instance en statut "résolu" via{' '}
-              <code>tadmin_resolve_instance</code>.
-            </div>
-            {resolveError && (
-              <div
-                style={{
-                  fontSize: 12,
-                  color: '#dc2626',
-                  marginTop: 6,
-                }}
-              >
-                Erreur : {resolveError}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setResolveTarget(null)
-              setResolveError(null)
-            }}
-            disabled={resolving}
-            style={btnSecondary}
-          >
-            Annuler
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void handleConfirmResolve()
-            }}
-            disabled={resolving}
-            style={btnPrimary}
-          >
-            {resolving ? '…' : '✓ Confirmer'}
-          </button>
+          Erreur clôture : {closeError}
         </div>
       )}
 
@@ -356,43 +312,27 @@ function Instances() {
                     >
                       <button
                         type="button"
-                        title="Instance résolue — le contrat retourne dans Contrats avec statut Validé"
-                        onClick={async () => {
-                          try {
-                            await leverInstance(r.contrat_id ?? r.id)
-                            await reload()
-                          } catch (e: unknown) {
-                            alert(
-                              e instanceof Error ? e.message : 'Erreur',
-                            )
-                          }
-                        }}
+                        title="Instance traitée et résolue"
+                        onClick={() => void handleClose(r.id, 'resolue')}
                         style={btnResolue}
                       >
                         ✓ Résolue
                       </button>
                       <button
                         type="button"
-                        title="Instance non résolue — le contrat bascule en Rétractation"
-                        onClick={async () => {
-                          if (
-                            !window.confirm(
-                              'Confirmer : ce contrat va basculer en Rétractation.',
-                            )
-                          )
-                            return
-                          try {
-                            await retracterContrat(r.contrat_id ?? r.id)
-                            await reload()
-                          } catch (e: unknown) {
-                            alert(
-                              e instanceof Error ? e.message : 'Erreur',
-                            )
-                          }
-                        }}
+                        title="Instance non résolue — tracer pour suivi"
+                        onClick={() => void handleClose(r.id, 'non_resolue')}
                         style={btnNonResolue}
                       >
                         ✗ Non résolue
+                      </button>
+                      <button
+                        type="button"
+                        title="Doublon ou instance à ignorer"
+                        onClick={() => void handleClose(r.id, 'doublon')}
+                        style={btnDoublon}
+                      >
+                        🗑 Doublon
                       </button>
                     </td>
                   </tr>
@@ -413,32 +353,10 @@ const th: React.CSSProperties = {
 }
 const td: React.CSSProperties = { padding: '10px 12px 10px 0' }
 
-const btnPrimary: React.CSSProperties = {
-  background: '#00C18B',
-  border: '1px solid #00A876',
-  color: '#fff',
-  borderRadius: 6,
-  padding: '6px 14px',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-}
-
-const btnSecondary: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #d1d5db',
-  color: '#374151',
-  borderRadius: 6,
-  padding: '6px 14px',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-}
-
 const btnResolue: React.CSSProperties = {
-  padding: '6px 14px',
+  padding: '6px 12px',
   borderRadius: 6,
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 600,
   background: '#1D9E75',
   color: '#fff',
@@ -447,13 +365,24 @@ const btnResolue: React.CSSProperties = {
 }
 
 const btnNonResolue: React.CSSProperties = {
-  padding: '6px 14px',
+  padding: '6px 12px',
   borderRadius: 6,
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 600,
   background: '#fff',
-  color: '#E24B4A',
-  border: '1px solid #E24B4A',
+  color: '#BA7517',
+  border: '1px solid #BA7517',
+  cursor: 'pointer',
+}
+
+const btnDoublon: React.CSSProperties = {
+  padding: '6px 12px',
+  borderRadius: 6,
+  fontSize: 12,
+  fontWeight: 600,
+  background: '#f3f4f6',
+  color: '#6b7280',
+  border: '1px solid #d1d5db',
   cursor: 'pointer',
 }
 

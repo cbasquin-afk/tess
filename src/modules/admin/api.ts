@@ -22,15 +22,28 @@ export async function fetchKpis(): Promise<TadminKpis | null> {
 }
 
 export async function fetchInstances(): Promise<TadminInstance[]> {
-  // Instances non résolues : 'ouvert' (ancien) + 'En cours' (nouveau).
+  // Statut canonique unique : 'ouvert' (les 'resolu' sortent de la liste).
   // Tri deadline ASC, NULL en dernier.
   const { data, error } = await supabase
     .from('tadmin_v_instances')
     .select('*')
-    .in('statut', ['ouvert', 'En cours'])
+    .eq('statut', 'ouvert')
     .order('deadline', { ascending: true, nullsFirst: false })
   if (error) throw new Error(`tadmin_v_instances: ${error.message}`)
   return (data ?? []) as TadminInstance[]
+}
+
+export type InstanceCloseMotif = 'resolue' | 'non_resolue' | 'doublon'
+
+export async function closeInstance(
+  instanceId: string,
+  motif: InstanceCloseMotif,
+): Promise<void> {
+  const { error } = await supabase.rpc('tadmin_close_instance', {
+    p_instance_id: instanceId,
+    p_motif: motif,
+  })
+  if (error) throw new Error(`tadmin_close_instance: ${error.message}`)
 }
 
 export async function fetchContrats(): Promise<TadminContrat[]> {
