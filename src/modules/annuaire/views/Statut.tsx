@@ -83,7 +83,6 @@ const S = {
     border: `1px solid ${C.border}`,
     borderRadius: 8,
     tableLayout: 'fixed',
-    overflow: 'hidden',
   } as const,
   th: {
     textAlign: 'left',
@@ -115,7 +114,7 @@ const S = {
   } as const,
   popover: {
     position: 'absolute',
-    zIndex: 10,
+    zIndex: 100,
     background: C.surface,
     border: `1px solid ${C.border}`,
     borderRadius: 8,
@@ -245,12 +244,15 @@ export default function Statut() {
 
   useEffect(() => {
     if (!popover) return
-    function onClickOutside(ev: MouseEvent) {
+    // On click (pas mousedown) pour laisser le onMouseDown du popover s'exécuter
+    // avant la fermeture. stopPropagation() sur le popover empêche ce handler
+    // de fermer si on clique dedans.
+    function onDocClick(ev: MouseEvent) {
       const el = popoverAnchorRef.current
       if (el && !el.contains(ev.target as Node)) setPopover(null)
     }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
   }, [popover])
 
   const consolidees = useMemo(() => consolider(rows), [rows])
@@ -293,6 +295,7 @@ export default function Statut() {
       await setMarqueStatutVerticale(slug, verticale, action)
       await recharger()
     } catch (e) {
+      console.error('[Statut] setMarqueStatutVerticale a échoué', e)
       alert(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(null)
@@ -398,31 +401,57 @@ export default function Statut() {
                   const isBusy = busy === key
                   return (
                     <td key={v} style={{ ...S.td, textAlign: 'center', position: 'relative' }}>
-                      <span
+                      <button
+                        type="button"
                         style={{ ...S.pill, background: col.bg, color: col.fg, borderColor: col.border, opacity: isBusy ? 0.5 : 1 }}
                         title={statutTitle(cell)}
-                        onClick={() => setPopover(isOpen ? null : { slug: m.slug, verticale: v })}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPopover(isOpen ? null : { slug: m.slug, verticale: v })
+                        }}
                       >
                         {col.label}
-                      </span>
+                      </button>
                       {isOpen && (
-                        <div style={{ ...S.popover, top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }}>
+                        <div
+                          style={{ ...S.popover, top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <button
+                            type="button"
                             style={S.popBtn}
                             disabled={!cell?.editorial_existe}
-                            onClick={() => handleAction(m.slug, v, 'publier')}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              void handleAction(m.slug, v, 'publier')
+                            }}
                             title={cell?.editorial_existe ? 'Publier cette page' : 'Pas d\u2019éditorial — publication impossible'}
                           >
                             ✓ Publier
                           </button>
                           <button
+                            type="button"
                             style={S.popBtn}
                             disabled={!cell?.editorial_existe}
-                            onClick={() => handleAction(m.slug, v, 'brouillon')}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              void handleAction(m.slug, v, 'brouillon')
+                            }}
                           >
                             ⦿ Brouillon
                           </button>
-                          <button style={S.popBtn} onClick={() => handleAction(m.slug, v, 'desactiver')}>
+                          <button
+                            type="button"
+                            style={S.popBtn}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              void handleAction(m.slug, v, 'desactiver')
+                            }}
+                          >
                             ⊘ Désactiver
                           </button>
                         </div>
