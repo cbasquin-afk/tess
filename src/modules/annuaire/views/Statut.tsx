@@ -288,14 +288,17 @@ export default function Statut() {
   }, [rows, consolidees])
 
   async function handleAction(slug: string, verticale: VerticaleStatut, action: ActionStatut) {
+    console.log('[annuaire/statut] handleAction ENTRÉE', { slug, verticale, action })
     const key = `${slug}:${verticale}`
     setBusy(key)
     setPopover(null)
     try {
+      console.log('[annuaire/statut] handleAction avant RPC', { slug, verticale, action })
       await setMarqueStatutVerticale(slug, verticale, action)
+      console.log('[annuaire/statut] handleAction RPC OK', { slug, verticale, action })
       await recharger()
     } catch (e) {
-      console.error('[Statut] setMarqueStatutVerticale a échoué', e)
+      console.error('[annuaire/statut] setMarqueStatutVerticale a échoué', e)
       alert(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(null)
@@ -423,9 +426,15 @@ export default function Statut() {
                             style={S.popBtn}
                             disabled={!cell?.editorial_existe}
                             onMouseDown={(e) => {
+                              console.log('[annuaire/statut] onMouseDown publier', { slug: m.slug, v, disabled: !cell?.editorial_existe })
                               e.preventDefault()
                               e.stopPropagation()
                               void handleAction(m.slug, v, 'publier')
+                            }}
+                            onClick={(e) => {
+                              console.log('[annuaire/statut] onClick publier (fallback)', { slug: m.slug, v })
+                              e.preventDefault()
+                              e.stopPropagation()
                             }}
                             title={cell?.editorial_existe ? 'Publier cette page' : 'Pas d\u2019éditorial — publication impossible'}
                           >
@@ -436,9 +445,15 @@ export default function Statut() {
                             style={S.popBtn}
                             disabled={!cell?.editorial_existe}
                             onMouseDown={(e) => {
+                              console.log('[annuaire/statut] onMouseDown brouillon', { slug: m.slug, v, disabled: !cell?.editorial_existe })
                               e.preventDefault()
                               e.stopPropagation()
                               void handleAction(m.slug, v, 'brouillon')
+                            }}
+                            onClick={(e) => {
+                              console.log('[annuaire/statut] onClick brouillon (fallback)', { slug: m.slug, v })
+                              e.preventDefault()
+                              e.stopPropagation()
                             }}
                           >
                             ⦿ Brouillon
@@ -447,9 +462,15 @@ export default function Statut() {
                             type="button"
                             style={S.popBtn}
                             onMouseDown={(e) => {
+                              console.log('[annuaire/statut] onMouseDown desactiver', { slug: m.slug, v })
                               e.preventDefault()
                               e.stopPropagation()
                               void handleAction(m.slug, v, 'desactiver')
+                            }}
+                            onClick={(e) => {
+                              console.log('[annuaire/statut] onClick desactiver (fallback)', { slug: m.slug, v })
+                              e.preventDefault()
+                              e.stopPropagation()
                             }}
                           >
                             ⊘ Désactiver
