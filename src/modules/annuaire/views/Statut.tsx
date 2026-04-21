@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  createMarqueEditorial,
   fetchMarqueStatut,
   setMarquePartenariat,
   setMarqueStatutVerticale,
@@ -176,6 +177,7 @@ function pillColors(s: StatutCellule | undefined): {
   bg: string
   fg: string
   border: string
+  borderStyle?: 'solid' | 'dashed'
   label: string
 } {
   if (s === 'publie') return { bg: C.okBg, fg: C.okFg, border: 'transparent', label: '✓' }
@@ -183,11 +185,12 @@ function pillColors(s: StatutCellule | undefined): {
     return { bg: C.draftBg, fg: C.draftFg, border: 'transparent', label: '⦿' }
   if (s === 'incoherent')
     return { bg: C.warnBg, fg: C.warnFg, border: C.warnFg, label: '!' }
-  return { bg: C.surfaceAlt, fg: C.muted, border: 'transparent', label: '−' }
+  // absent / undefined → style "créer" : bordure pointillée cliquable
+  return { bg: C.surface, fg: C.muted, border: C.border, borderStyle: 'dashed', label: '+' }
 }
 
 function statutTitle(cell: MarqueStatutRow | undefined): string {
-  if (!cell) return 'Non couverte'
+  if (!cell) return 'Non couverte — cliquer pour créer l’éditorial'
   if (cell.statut === 'publie') return 'Publiée (core actif + éditorial + indexable)'
   if (cell.statut === 'brouillon') return 'Brouillon (noindex volontaire)'
   if (cell.statut === 'incoherent') {
@@ -195,6 +198,7 @@ function statutTitle(cell: MarqueStatutRow | undefined): string {
     if (cell.type_incoherence === 'orphelin') return 'Incohérence : éditorial prêt, page non routée'
     return 'Incohérence'
   }
+  if (cell.statut === 'absent') return 'Non couverte — cliquer pour créer l’éditorial'
   return 'Non couverte'
 }
 
@@ -302,6 +306,21 @@ export default function Statut() {
     }
   }
 
+  async function handleCreateEditorial(slug: string, verticale: VerticaleStatut) {
+    const key = `${slug}:${verticale}:create`
+    setBusy(key)
+    setPopover(null)
+    try {
+      await createMarqueEditorial(slug, verticale)
+      await recharger()
+    } catch (e) {
+      console.error('[annuaire/statut] createMarqueEditorial a échoué', e)
+      alert(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function handlePartenariat(slug: string, value: boolean) {
     setBusy(`${slug}:partenariat`)
     try {
@@ -403,7 +422,14 @@ export default function Statut() {
                     <td key={v} style={{ ...S.td, textAlign: 'center', position: 'relative' }}>
                       <button
                         type="button"
-                        style={{ ...S.pill, background: col.bg, color: col.fg, borderColor: col.border, opacity: isBusy ? 0.5 : 1 }}
+                        style={{
+                          ...S.pill,
+                          background: col.bg,
+                          color: col.fg,
+                          borderColor: col.border,
+                          borderStyle: col.borderStyle ?? 'solid',
+                          opacity: isBusy ? 0.5 : 1,
+                        }}
                         title={statutTitle(cell)}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -414,65 +440,96 @@ export default function Statut() {
                       </button>
                       {isOpen && (() => {
                         const hasEditorial = !!cell?.editorial_existe
-                        const disabledStyle: React.CSSProperties = !hasEditorial
-                          ? { opacity: 0.4, cursor: 'not-allowed' }
-                          : {}
+                        const isCreating = busy === `${m.slug}:${v}:create`
                         return (
                           <div
                             style={{ ...S.popover, top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <button
-                              type="button"
-                              style={{ ...S.popBtn, ...disabledStyle }}
-                              disabled={!hasEditorial}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                void handleAction(m.slug, v, 'publier')
-                              }}
-                              title={hasEditorial ? 'Publier cette page' : 'Pas d\u2019éditorial — publication impossible'}
-                            >
-                              ✓ Publier
-                            </button>
-                            <button
-                              type="button"
-                              style={{ ...S.popBtn, ...disabledStyle }}
-                              disabled={!hasEditorial}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                void handleAction(m.slug, v, 'brouillon')
-                              }}
-                              title={hasEditorial ? 'Basculer en brouillon' : 'Pas d\u2019éditorial — brouillon impossible'}
-                            >
-                              ⦿ Brouillon
-                            </button>
-                            <button
-                              type="button"
-                              style={S.popBtn}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                void handleAction(m.slug, v, 'desactiver')
-                              }}
-                            >
-                              ⊘ Désactiver
-                            </button>
-                            {!hasEditorial && (
-                              <div
-                                style={{
-                                  marginTop: 4,
-                                  padding: '6px 10px',
-                                  fontSize: 10,
-                                  color: C.muted,
-                                  borderTop: `1px solid ${C.border}`,
-                                  lineHeight: 1.4,
-                                }}
-                              >
-                                Aucun éditorial pour cette verticale — éditer la fiche pour activer Publier / Brouillon.
-                              </div>
+                            {hasEditorial ? (
+                              <>
+                                <button
+                                  type="button"
+                                  style={S.popBtn}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    void handleAction(m.slug, v, 'publier')
+                                  }}
+                                  title="Publier cette page"
+                                >
+                                  ✓ Publier
+                                </button>
+                                <button
+                                  type="button"
+                                  style={S.popBtn}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    void handleAction(m.slug, v, 'brouillon')
+                                  }}
+                                  title="Basculer en brouillon"
+                                >
+                                  ⦿ Brouillon
+                                </button>
+                                <button
+                                  type="button"
+                                  style={S.popBtn}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    void handleAction(m.slug, v, 'desactiver')
+                                  }}
+                                >
+                                  ⊘ Désactiver
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <div
+                                  style={{
+                                    padding: '8px 10px 4px',
+                                    fontSize: 11,
+                                    color: C.muted,
+                                    lineHeight: 1.4,
+                                  }}
+                                >
+                                  <strong style={{ color: C.text }}>
+                                    Pas d’éditorial pour {VERTICALE_STATUT_LABELS[v]}
+                                  </strong>
+                                  <div style={{ marginTop: 3 }}>
+                                    Créez une fiche vide (en brouillon) pour pouvoir ensuite l’éditer et la publier.
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  style={{
+                                    ...S.popBtn,
+                                    marginTop: 4,
+                                    background: C.primaryBg,
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    opacity: isCreating ? 0.6 : 1,
+                                  }}
+                                  disabled={isCreating}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    if (!isCreating) void handleCreateEditorial(m.slug, v)
+                                  }}
+                                  title="Créer une fiche éditoriale vide pour cette verticale"
+                                >
+                                  {isCreating ? '…' : '📝 Créer l’éditorial (brouillon)'}
+                                </button>
+                                <Link
+                                  to={`/annuaire/${m.slug}`}
+                                  style={{ ...S.popBtn, color: C.primaryBg, textDecoration: 'none' }}
+                                  onClick={() => setPopover(null)}
+                                >
+                                  ✎ Ouvrir la fiche…
+                                </Link>
+                              </>
                             )}
                           </div>
                         )
@@ -511,17 +568,17 @@ function Stat({ label, value, color }: { label: string; value: number; color?: s
 }
 
 function Legende() {
-  const items = [
+  const items: { bg: string; border: string; borderStyle?: 'solid' | 'dashed'; label: string }[] = [
     { bg: C.okBg, border: 'transparent', label: 'Publiée' },
     { bg: C.draftBg, border: 'transparent', label: 'Brouillon' },
-    { bg: C.surfaceAlt, border: C.border, label: 'Non couverte' },
+    { bg: C.surface, border: C.border, borderStyle: 'dashed', label: 'Non couverte (cliquer pour créer)' },
     { bg: C.warnBg, border: C.warnFg, label: 'Incohérence' },
   ]
   return (
     <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 11, color: C.muted, flexWrap: 'wrap' }}>
       {items.map((it) => (
         <span key={it.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: it.bg, border: `1px solid ${it.border}` }} />
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: it.bg, border: `1px ${it.borderStyle ?? 'solid'} ${it.border}` }} />
           {it.label}
         </span>
       ))}

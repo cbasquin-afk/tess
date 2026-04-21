@@ -228,3 +228,14 @@ export async function setMarquePartenariat(
   })
   if (error) throw toError(error, `Échec de la bascule partenariat pour ${slug}`)
 }
+
+export async function createMarqueEditorial(
+  slug: string,
+  verticale: VerticaleStatut,
+): Promise<void> {
+  const { error } = await supabase.rpc('create_marque_editorial', {
+    p_slug: slug,
+    p_verticale: verticale,
+  })
+  if (error) throw toError(error, `Échec de la création d'éditorial pour ${slug}/${verticale}`)
+}
