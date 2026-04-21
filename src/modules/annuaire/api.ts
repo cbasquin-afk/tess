@@ -239,3 +239,79 @@ export async function createMarqueEditorial(
   })
   if (error) throw toError(error, `Échec de la création d'éditorial pour ${slug}/${verticale}`)
 }
+
+// ── Rebuild site public ──────────────────────────────────────
+export interface TriggerRebuildResult {
+  ok: boolean
+  message: string
+  rateLimited?: boolean
+  remainingSeconds?: number
+}
+
+export async function triggerSiteRebuild(): Promise<TriggerRebuildResult> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) return { ok: false, message: 'Non connecté' }
+
+  const baseUrl = import.meta.env.VITE_SUPABASE_URL
+  if (!baseUrl) return { ok: false, message: 'VITE_SUPABASE_URL manquant' }
+
+  let res: Response
+  try {
+    res = await fetch(`${baseUrl}/functions/v1/trigger-site-rebuild`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+  } catch (e: unknown) {
+    return { ok: false, message: e instanceof Error ? e.message : 'Erreur réseau' }
+  }
+
+  let body: {
+    message?: string
+    error?: string
+    remaining_seconds?: number
+  } = {}
+  try {
+    body = await res.json()
+  } catch {
+    // réponse non-JSON
+  }
+
+  if (res.status === 429) {
+    return {
+      ok: false,
+      message: body.message || 'Rate limit',
+      rateLimited: true,
+      remainingSeconds: body.remaining_seconds,
+    }
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      message: body.error || body.message || `HTTP ${res.status}`,
+    }
+  }
+  return { ok: true, message: body.message || 'Rebuild déclenché' }
+}
+
+export interface LastRebuildRow {
+  triggered_at: string
+  triggered_by_email: string | null
+  success: boolean
+}
+
+export async function fetchLastRebuild(): Promise<LastRebuildRow | null> {
+  const { data, error } = await supabase
+    .from('site_rebuild_history')
+    .select('triggered_at, triggered_by_email, success')
+    .eq('success', true)
+    .order('triggered_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) return null
+  return (data as LastRebuildRow | null) ?? null
+}
