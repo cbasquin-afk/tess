@@ -30,6 +30,25 @@ import {
   type TarifParAge,
 } from '../types'
 
+// Bandeau affiché au-dessus du formulaire : les champs publication /
+// partenariat / noindex vivent désormais dans /annuaire/statut.
+const StatutInfoBanner = () => (
+  <div
+    style={{
+      padding: 12,
+      background: '#eff6ff',
+      border: '1px solid #bfdbfe',
+      borderRadius: 6,
+      marginBottom: 16,
+      fontSize: 13,
+      color: '#1e3a8a',
+    }}
+  >
+    ℹ Le statut de publication, le partenariat et l'indexation sont désormais
+    gérés dans l'onglet <Link to="/annuaire/statut" style={{ color: '#1f3a8a', fontWeight: 600 }}>Statut des marques</Link>.
+  </div>
+)
+
 type TabId = 'identite' | 'garanties' | 'tarifs' | 'recommandation'
 
 const TABS: readonly { id: TabId; label: string }[] = [
@@ -213,28 +232,21 @@ interface TabIdentiteProps {
 function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: TabIdentiteProps) {
   const isMutuelleLike = MUTUELLE_VERTICALES.has(verticale)
   const [form, setForm] = useState({
-    // annuaire_statut fields
-    statut_page: (statut?.statut_page ?? 'brouillon') as StatutPage,
-    statut_partenaire: (statut?.statut_partenaire ?? 'non_partenaire') as StatutPartenaire,
+    // annuaire_statut fields (suivi interne + éditorial)
     alerte_verif: statut?.alerte_verif ?? false,
     note_interne: statut?.note_interne ?? '',
     avis_courtier_court: statut?.avis_courtier_court ?? '',
     profil_ideal: statut?.profil_ideal ?? '',
     points_forts_editorial: statut?.points_forts_editorial ?? [],
-    points_faibles: statut?.points_faibles ?? [],
     groupe_appartenance: statut?.groupe_appartenance ?? '',
     annee_creation: statut?.annee_creation,
     nb_assures: statut?.nb_assures ?? '',
     positionnement_tarifaire: statut?.positionnement_tarifaire ?? '',
     // marque_verticale_mutuelle fields
     prix_entree_marche: mutuelle.prix_entree_marche,
-    prix_entree_age_label: mutuelle.prix_entree_age_label ?? '',
     note_courtier: mutuelle.note_courtier,
-    age_min_verifie: mutuelle.age_min_verifie,
-    age_max_verifie: mutuelle.age_max_verifie,
     age_min_adhesion: mutuelle.age_min_adhesion,
     age_max_adhesion: mutuelle.age_max_adhesion,
-    noindex: mutuelle.noindex,
     seo_title_override: mutuelle.seo_title_override ?? '',
     seo_meta_override: mutuelle.seo_meta_override ?? '',
     analyse_courtier: mutuelle.analyse_courtier ?? '',
@@ -243,31 +255,23 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
     points_vigilance: mutuelle.points_vigilance ?? [],
   })
   const [saving, setSaving] = useState(false)
-  const [confirmArchive, setConfirmArchive] = useState(false)
 
   // Resync form quand les données sont rechargées (après save ou navigation)
   useEffect(() => {
     setForm({
-      statut_page: (statut?.statut_page ?? 'brouillon') as StatutPage,
-      statut_partenaire: (statut?.statut_partenaire ?? 'non_partenaire') as StatutPartenaire,
       alerte_verif: statut?.alerte_verif ?? false,
       note_interne: statut?.note_interne ?? '',
       avis_courtier_court: statut?.avis_courtier_court ?? '',
       profil_ideal: statut?.profil_ideal ?? '',
       points_forts_editorial: statut?.points_forts_editorial ?? [],
-      points_faibles: statut?.points_faibles ?? [],
       groupe_appartenance: statut?.groupe_appartenance ?? '',
       annee_creation: statut?.annee_creation,
       nb_assures: statut?.nb_assures ?? '',
       positionnement_tarifaire: statut?.positionnement_tarifaire ?? '',
       prix_entree_marche: mutuelle.prix_entree_marche,
-      prix_entree_age_label: mutuelle.prix_entree_age_label ?? '',
       note_courtier: mutuelle.note_courtier,
-      age_min_verifie: mutuelle.age_min_verifie,
-      age_max_verifie: mutuelle.age_max_verifie,
       age_min_adhesion: mutuelle.age_min_adhesion,
       age_max_adhesion: mutuelle.age_max_adhesion,
-      noindex: mutuelle.noindex,
       seo_title_override: mutuelle.seo_title_override ?? '',
       seo_meta_override: mutuelle.seo_meta_override ?? '',
       analyse_courtier: mutuelle.analyse_courtier ?? '',
@@ -277,9 +281,7 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
     })
   }, [statut, mutuelle])
 
-  const originalStatut = statut?.statut_page ?? 'brouillon'
-
-  type ArrayKey = 'points_forts' | 'points_vigilance' | 'points_forts_editorial' | 'points_faibles'
+  type ArrayKey = 'points_forts' | 'points_vigilance' | 'points_forts_editorial'
 
   const updatePointsArray = (key: ArrayKey, index: number, value: string) => {
     setForm((prev) => {
@@ -305,14 +307,11 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
         upsertStatut({
           slug,
           verticale: 'mutuelle',
-          statut_page: form.statut_page,
-          statut_partenaire: form.statut_partenaire,
           alerte_verif: form.alerte_verif,
           note_interne: form.note_interne || null,
           avis_courtier_court: form.avis_courtier_court || null,
           profil_ideal: form.profil_ideal || null,
           points_forts_editorial: (form.points_forts_editorial ?? []).filter((p) => p.trim().length > 0),
-          points_faibles: (form.points_faibles ?? []).filter((p) => p.trim().length > 0),
           groupe_appartenance: form.groupe_appartenance || null,
           annee_creation: form.annee_creation ?? null,
           nb_assures: form.nb_assures || null,
@@ -320,13 +319,9 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
         }),
         updateMutuelle(slug, {
           prix_entree_marche: form.prix_entree_marche,
-          prix_entree_age_label: form.prix_entree_age_label || null,
           note_courtier: form.note_courtier,
-          age_min_verifie: form.age_min_verifie,
-          age_max_verifie: form.age_max_verifie,
           age_min_adhesion: form.age_min_adhesion,
           age_max_adhesion: form.age_max_adhesion,
-          noindex: form.noindex,
           seo_title_override: form.seo_title_override || null,
           seo_meta_override: form.seo_meta_override || null,
           analyse_courtier: form.analyse_courtier || null,
@@ -348,45 +343,14 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
   }, [slug, form, onReload, onToast])
 
   const handleSave = () => {
-    if (form.statut_page === 'archivee' && originalStatut === 'publiee') {
-      setConfirmArchive(true)
-      return
-    }
     void doSave()
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <Section title="Statut & visibilité">
-        <Field label="Statut page">
-          <select
-            value={form.statut_page}
-            onChange={(e) =>
-              setForm({ ...form, statut_page: e.target.value as StatutPage })
-            }
-            style={inputStyle}
-          >
-            <option value="publiee">Publiée</option>
-            <option value="brouillon">Brouillon</option>
-            <option value="archivee">Archivée</option>
-          </select>
-        </Field>
-        <Field label="Statut partenaire">
-          <select
-            value={form.statut_partenaire}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                statut_partenaire: e.target.value as StatutPartenaire,
-              })
-            }
-            style={inputStyle}
-          >
-            <option value="partenaire_direct">Partenaire direct</option>
-            <option value="partenaire_indirect">Partenaire indirect</option>
-            <option value="non_partenaire">Non partenaire</option>
-          </select>
-        </Field>
+      <StatutInfoBanner />
+
+      <Section title="Suivi interne">
         <Field label="Alerte vérification">
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input
@@ -421,17 +385,6 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
             style={inputStyle}
           />
         </Field>
-        <Field label="Libellé âge prix entrée">
-          <input
-            type="text"
-            value={form.prix_entree_age_label}
-            onChange={(e) =>
-              setForm({ ...form, prix_entree_age_label: e.target.value })
-            }
-            placeholder="ex: pour 65 ans"
-            style={inputStyle}
-          />
-        </Field>
         {isMutuelleLike && (
           <>
             <Field label="Note courtier (0–5)">
@@ -445,32 +398,6 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
                   setForm({
                     ...form,
                     note_courtier: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-                style={inputStyle}
-              />
-            </Field>
-            <Field label="Âge min vérifié">
-              <input
-                type="number"
-                value={form.age_min_verifie ?? ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    age_min_verifie: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-                style={inputStyle}
-              />
-            </Field>
-            <Field label="Âge max vérifié">
-              <input
-                type="number"
-                value={form.age_max_verifie ?? ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    age_max_verifie: e.target.value ? Number(e.target.value) : null,
                   })
                 }
                 style={inputStyle}
@@ -504,16 +431,6 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
             </Field>
           </>
         )}
-        <Field label="noindex">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={form.noindex}
-              onChange={(e) => setForm({ ...form, noindex: e.target.checked })}
-            />
-            <span style={{ fontSize: 13 }}>Exclure des moteurs</span>
-          </label>
-        </Field>
       </Section>
 
       <Section title="Données éditorial (annuaire_statut)">
@@ -577,15 +494,6 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
             onChange={(i, v) => updatePointsArray('points_forts_editorial', i, v)}
             onAdd={() => addPoint('points_forts_editorial')}
             onRemove={(i) => removePoint('points_forts_editorial', i)}
-          />
-        </Field>
-        <Field label="Points faibles" full>
-          <PointsArray
-            values={form.points_faibles}
-            color="#ef4444"
-            onChange={(i, v) => updatePointsArray('points_faibles', i, v)}
-            onAdd={() => addPoint('points_faibles')}
-            onRemove={(i) => removePoint('points_faibles', i)}
           />
         </Field>
       </Section>
@@ -653,31 +561,6 @@ function TabIdentite({ slug, verticale, mutuelle, statut, onReload, onToast }: T
           {saving ? 'Enregistrement…' : 'Sauvegarder'}
         </button>
       </div>
-
-      <Modal
-        open={confirmArchive}
-        onClose={() => setConfirmArchive(false)}
-        title="Confirmer l'archivage"
-      >
-        <p style={{ fontSize: 13, color: '#475569' }}>
-          Cette fiche est actuellement publiée. L'archiver la retirera de
-          l'annuaire public. Confirmer ?
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={() => setConfirmArchive(false)} style={btnSecondary}>
-            Annuler
-          </button>
-          <button
-            onClick={() => {
-              setConfirmArchive(false)
-              void doSave()
-            }}
-            style={{ ...btnPrimary, background: '#ef4444' }}
-          >
-            Archiver
-          </button>
-        </div>
-      </Modal>
     </div>
   )
 }
