@@ -75,7 +75,10 @@ const FINANCES_LINKS = [
   { path: '/finances/marge', label: '📉 Marge mensuelle' },
   { path: '/finances/charges', label: '💳 Charges' },
   { path: '/finances/factures', label: '🧾 Factures' },
-  { path: '/finances/simulateur', label: '🧮 Simulateur' },
+] as const
+
+const OUTILS_LINKS = [
+  { path: '/simulateur', label: '🧮 Simulateur' },
 ] as const
 
 // PerfLead, Admin et Finances ont une sous-navigation. Si d'autres
@@ -85,7 +88,8 @@ function hasSublinks(m: ModuleConfig): boolean {
     m.path === '/perflead' ||
     m.path === '/admin' ||
     m.path === '/finances' ||
-    m.path === '/annuaire'
+    m.path === '/annuaire' ||
+    m.path === '/simulateur'
   )
 }
 
@@ -382,6 +386,33 @@ export function Sidebar() {
                 {isOpen && m.path === '/annuaire' && (
                   <div style={{ marginTop: 4, marginBottom: 6 }}>
                     {ANNUAIRE_LINKS.map((sl) => {
+                      const slActive = location.pathname === sl.path
+                      return (
+                        <Link
+                          key={sl.path}
+                          to={sl.path}
+                          style={{
+                            display: 'block',
+                            padding: '7px 12px 7px 20px',
+                            borderRadius: 5,
+                            color: slActive ? '#fff' : '#94a3b8',
+                            background: slActive ? '#1e293b' : 'transparent',
+                            textDecoration: 'none',
+                            fontSize: 12,
+                            fontWeight: slActive ? 600 : 400,
+                            marginBottom: 1,
+                          }}
+                        >
+                          {sl.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {isOpen && m.path === '/simulateur' && (
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    {OUTILS_LINKS.map((sl) => {
                       const slActive = location.pathname === sl.path
                       return (
                         <Link

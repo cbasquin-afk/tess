@@ -18,6 +18,14 @@ export const MODULES: ModuleConfig[] = [
     loader: () => import('../modules/perflead'),
   },
   {
+    id: 'simulateur',
+    label: 'Outils',
+    icon: '🧮',
+    path: '/simulateur',
+    minRole: 'commercial',
+    loader: () => import('../modules/simulateur'),
+  },
+  {
     id: 'admin',
     label: 'Administration',
     icon: '⚙️',
