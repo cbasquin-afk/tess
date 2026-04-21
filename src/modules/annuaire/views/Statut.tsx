@@ -288,15 +288,25 @@ export default function Statut() {
   }, [rows, consolidees])
 
   async function handleAction(slug: string, verticale: VerticaleStatut, action: ActionStatut) {
-    console.log('[annuaire/statut] handleAction ENTRÉE', { slug, verticale, action })
+    console.log('[annuaire/statut] handleAction ENTRÉE', {
+      slug,
+      slugLength: slug.length,
+      slugJSON: JSON.stringify(slug),
+      verticale,
+      action,
+    })
     const key = `${slug}:${verticale}`
     setBusy(key)
     setPopover(null)
     try {
       console.log('[annuaire/statut] handleAction avant RPC', { slug, verticale, action })
       await setMarqueStatutVerticale(slug, verticale, action)
-      console.log('[annuaire/statut] handleAction RPC OK', { slug, verticale, action })
-      await recharger()
+      console.log('[annuaire/statut] handleAction RPC OK, recharger()…')
+      const fresh = await fetchMarqueStatut()
+      const before = rows.find((r) => r.slug === slug && r.verticale === verticale)
+      const after = fresh.find((r) => r.slug === slug && r.verticale === verticale)
+      console.log('[annuaire/statut] recharger() OK — diff sur la cellule', { before, after })
+      setRows(fresh)
     } catch (e) {
       console.error('[annuaire/statut] setMarqueStatutVerticale a échoué', e)
       alert(e instanceof Error ? e.message : String(e))
