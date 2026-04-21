@@ -288,25 +288,12 @@ export default function Statut() {
   }, [rows, consolidees])
 
   async function handleAction(slug: string, verticale: VerticaleStatut, action: ActionStatut) {
-    console.log('[annuaire/statut] handleAction ENTRÉE', {
-      slug,
-      slugLength: slug.length,
-      slugJSON: JSON.stringify(slug),
-      verticale,
-      action,
-    })
     const key = `${slug}:${verticale}`
     setBusy(key)
     setPopover(null)
     try {
-      console.log('[annuaire/statut] handleAction avant RPC', { slug, verticale, action })
       await setMarqueStatutVerticale(slug, verticale, action)
-      console.log('[annuaire/statut] handleAction RPC OK, recharger()…')
-      const fresh = await fetchMarqueStatut()
-      const before = rows.find((r) => r.slug === slug && r.verticale === verticale)
-      const after = fresh.find((r) => r.slug === slug && r.verticale === verticale)
-      console.log('[annuaire/statut] recharger() OK — diff sur la cellule', { before, after })
-      setRows(fresh)
+      await recharger()
     } catch (e) {
       console.error('[annuaire/statut] setMarqueStatutVerticale a échoué', e)
       alert(e instanceof Error ? e.message : String(e))
@@ -425,68 +412,71 @@ export default function Statut() {
                       >
                         {col.label}
                       </button>
-                      {isOpen && (
-                        <div
-                          style={{ ...S.popover, top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            style={S.popBtn}
-                            disabled={!cell?.editorial_existe}
-                            onMouseDown={(e) => {
-                              console.log('[annuaire/statut] onMouseDown publier', { slug: m.slug, v, disabled: !cell?.editorial_existe })
-                              e.preventDefault()
-                              e.stopPropagation()
-                              void handleAction(m.slug, v, 'publier')
-                            }}
-                            onClick={(e) => {
-                              console.log('[annuaire/statut] onClick publier (fallback)', { slug: m.slug, v })
-                              e.preventDefault()
-                              e.stopPropagation()
-                            }}
-                            title={cell?.editorial_existe ? 'Publier cette page' : 'Pas d\u2019éditorial — publication impossible'}
+                      {isOpen && (() => {
+                        const hasEditorial = !!cell?.editorial_existe
+                        const disabledStyle: React.CSSProperties = !hasEditorial
+                          ? { opacity: 0.4, cursor: 'not-allowed' }
+                          : {}
+                        return (
+                          <div
+                            style={{ ...S.popover, top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            ✓ Publier
-                          </button>
-                          <button
-                            type="button"
-                            style={S.popBtn}
-                            disabled={!cell?.editorial_existe}
-                            onMouseDown={(e) => {
-                              console.log('[annuaire/statut] onMouseDown brouillon', { slug: m.slug, v, disabled: !cell?.editorial_existe })
-                              e.preventDefault()
-                              e.stopPropagation()
-                              void handleAction(m.slug, v, 'brouillon')
-                            }}
-                            onClick={(e) => {
-                              console.log('[annuaire/statut] onClick brouillon (fallback)', { slug: m.slug, v })
-                              e.preventDefault()
-                              e.stopPropagation()
-                            }}
-                          >
-                            ⦿ Brouillon
-                          </button>
-                          <button
-                            type="button"
-                            style={S.popBtn}
-                            onMouseDown={(e) => {
-                              console.log('[annuaire/statut] onMouseDown desactiver', { slug: m.slug, v })
-                              e.preventDefault()
-                              e.stopPropagation()
-                              void handleAction(m.slug, v, 'desactiver')
-                            }}
-                            onClick={(e) => {
-                              console.log('[annuaire/statut] onClick desactiver (fallback)', { slug: m.slug, v })
-                              e.preventDefault()
-                              e.stopPropagation()
-                            }}
-                          >
-                            ⊘ Désactiver
-                          </button>
-                        </div>
-                      )}
+                            <button
+                              type="button"
+                              style={{ ...S.popBtn, ...disabledStyle }}
+                              disabled={!hasEditorial}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                void handleAction(m.slug, v, 'publier')
+                              }}
+                              title={hasEditorial ? 'Publier cette page' : 'Pas d\u2019éditorial — publication impossible'}
+                            >
+                              ✓ Publier
+                            </button>
+                            <button
+                              type="button"
+                              style={{ ...S.popBtn, ...disabledStyle }}
+                              disabled={!hasEditorial}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                void handleAction(m.slug, v, 'brouillon')
+                              }}
+                              title={hasEditorial ? 'Basculer en brouillon' : 'Pas d\u2019éditorial — brouillon impossible'}
+                            >
+                              ⦿ Brouillon
+                            </button>
+                            <button
+                              type="button"
+                              style={S.popBtn}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                void handleAction(m.slug, v, 'desactiver')
+                              }}
+                            >
+                              ⊘ Désactiver
+                            </button>
+                            {!hasEditorial && (
+                              <div
+                                style={{
+                                  marginTop: 4,
+                                  padding: '6px 10px',
+                                  fontSize: 10,
+                                  color: C.muted,
+                                  borderTop: `1px solid ${C.border}`,
+                                  lineHeight: 1.4,
+                                }}
+                              >
+                                Aucun éditorial pour cette verticale — éditer la fiche pour activer Publier / Brouillon.
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </td>
                   )
                 })}

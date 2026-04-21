@@ -210,13 +210,11 @@ export async function setMarqueStatutVerticale(
   verticale: VerticaleStatut,
   action: ActionStatut,
 ): Promise<void> {
-  console.log('[annuaire/api] setMarqueStatutVerticale appelée', { slug, verticale, action })
-  const { data, error, status, statusText } = await supabase.rpc('set_marque_statut_verticale', {
+  const { error } = await supabase.rpc('set_marque_statut_verticale', {
     p_slug: slug,
     p_verticale: verticale,
     p_action: action,
   })
-  console.log('[annuaire/api] setMarqueStatutVerticale réponse', { data, error, status, statusText })
   if (error) throw toError(error, `Échec de l'action "${action}" sur ${slug}/${verticale}`)
 }
 
