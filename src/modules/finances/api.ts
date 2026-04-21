@@ -10,6 +10,7 @@ import type {
   ContratNonPaye,
   FactureMandataire,
   MargeMensuelle,
+  OffreRemuneration,
   PortefeuilleRow,
   RepriseRow,
   RetractationRow,
@@ -512,4 +513,35 @@ export async function updateFactureStatut(
     .update({ statut, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw new Error(`update facture statut: ${error.message}`)
+}
+
+// ── Simulateur de rémunération ──────────────────────────────
+const OFFRE_COLS =
+  'id, compagnie_nom, compagnie_nom_court, compagnie_type_relation, compagnie_statut_protocole, produit_nom, produit_code, verticale, type_commission, taux_acq_pct, taux_rec_pct, taux_lin_pct, precompte_disponible, precompte_conditions, surcom_actif, surcom_taux_pct, surcom_conditions, statut_data'
+
+export async function fetchVerticalesOffres(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('partenaires_v_offres_remuneration')
+    .select('verticale')
+    .eq('actif', true)
+  if (error) throw new Error(`verticales offres: ${error.message}`)
+  const set = new Set<string>()
+  for (const r of (data ?? []) as { verticale: string | null }[]) {
+    if (r.verticale) set.add(r.verticale)
+  }
+  return Array.from(set).sort()
+}
+
+export async function fetchOffresPourSimulation(
+  verticale: string,
+): Promise<OffreRemuneration[]> {
+  const { data, error } = await supabase
+    .from('partenaires_v_offres_remuneration')
+    .select(OFFRE_COLS)
+    .eq('actif', true)
+    .eq('verticale', verticale)
+    .order('compagnie_nom', { ascending: true })
+    .order('produit_nom', { ascending: true })
+  if (error) throw new Error(`offres remuneration: ${error.message}`)
+  return (data ?? []) as OffreRemuneration[]
 }

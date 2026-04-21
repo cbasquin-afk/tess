@@ -336,6 +336,52 @@ export interface ContratNonPaye {
   action_prise: string | null
 }
 
+// ── Simulateur de rémunération ──────────────────────────────
+export interface OffreRemuneration {
+  id: string
+  compagnie_nom: string | null
+  compagnie_nom_court: string | null
+  compagnie_type_relation: string | null
+  compagnie_statut_protocole: string | null
+  produit_nom: string | null
+  produit_code: string | null
+  verticale: string
+  type_commission: string | null
+  taux_acq_pct: number | string | null
+  taux_rec_pct: number | string | null
+  taux_lin_pct: number | string | null
+  precompte_disponible: boolean | null
+  precompte_conditions: string | null
+  surcom_actif: boolean | null
+  surcom_taux_pct: number | string | null
+  surcom_conditions: string | null
+  statut_data: string | null
+}
+
+export type CalcType = 'LR' | 'PA' | 'LE' | 'PA_LR_PRECOMPTE' | 'PA_LR_LINEAIRE'
+
+export interface OffreVariante {
+  offre: OffreRemuneration
+  variant_key: string
+  variant_label: string | null
+  calc_type: CalcType
+}
+
+export interface SimulationLigne {
+  key: string
+  offre: OffreRemuneration
+  variant_label: string | null
+  calc_type: CalcType
+  abattement: number
+  com_an_1: number | null
+  com_an_N: number | null
+  cumul: number | null
+  reprise_an_1: number | null
+  reprise_an_2: number | null
+  reprise_an_3: number | null
+  formule: string
+}
+
 // ── Vue finances_v_factures_mandataires ─────────────────────
 export type StatutFacture = 'a_generer' | 'generee' | 'envoyee' | 'payee'
 
