@@ -5,7 +5,7 @@ import { useAuth } from '../shared/auth/useAuth'
 import { Button } from '../shared/ui'
 
 export function Login() {
-  const { session, loading } = useAuth()
+  const { session, role, loading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -15,7 +15,9 @@ export function Login() {
     return <div style={{ padding: 32 }}>Chargement…</div>
   }
   if (session) {
-    return <Navigate to="/" replace />
+    // Fournisseur externe : redirection vers son espace PerfLead restreint.
+    const landing = role === 'fournisseur' ? '/perflead' : '/'
+    return <Navigate to={landing} replace />
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {

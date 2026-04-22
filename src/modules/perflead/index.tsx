@@ -1,8 +1,9 @@
-import { Suspense } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { PerfLeadFiltersProvider } from './context/FiltersContext'
 import { FilterBar } from './components/FilterBar'
 import { lazyWithRetry } from '@/shared/lazyWithRetry'
+import { useAuth } from '@/shared/auth/useAuth'
 
 const Dashboard = lazyWithRetry(() => import('./views/Dashboard'))
 const Import = lazyWithRetry(() => import('./views/Import'))
@@ -19,6 +20,25 @@ const Alertes = lazyWithRetry(() => import('./views/Alertes'))
 const Personae = lazyWithRetry(() => import('./views/Personae'))
 const Fournisseur = lazyWithRetry(() => import('./views/Fournisseur'))
 
+// Sous-routes interdites au fournisseur. Garde-fou : même si les liens ne
+// sont pas exposés dans la sidebar, une URL tapée directement retombe ici.
+const FOURNISSEUR_ALLOWED_SUBPATHS = new Set<string>([
+  '', // /perflead = Dashboard
+  'hebdo',
+  'hebdomadaire',
+  'statuts',
+  'analyse',
+  'analyse-leads',
+])
+
+function FournisseurGuard({ children, subpath }: { children: ReactNode; subpath: string }) {
+  const { role } = useAuth()
+  if (role === 'fournisseur' && !FOURNISSEUR_ALLOWED_SUBPATHS.has(subpath)) {
+    return <Navigate to="/perflead" replace />
+  }
+  return <>{children}</>
+}
+
 function PerfLeadModule() {
   // FilterBar dans le flux normal du contenu (le Shell.main fournit déjà
   // le padding 32). Sticky top: 56 la cale sous la Topbar lors du scroll.
@@ -34,23 +54,23 @@ function PerfLeadModule() {
           }
         >
           <Routes>
-            <Route index element={<Dashboard />} />
-            <Route path="import" element={<Import />} />
-            <Route path="commerciaux" element={<Commerciaux />} />
-            <Route path="contrats" element={<Contrats />} />
-            <Route path="hebdo" element={<Hebdo />} />
-            <Route path="hebdomadaire" element={<Hebdo />} />
-            <Route path="analyse" element={<Analyse />} />
-            <Route path="analyse-leads" element={<Analyse />} />
-            <Route path="gammes" element={<Gammes />} />
-            <Route path="ages" element={<Ages />} />
-            <Route path="tranches-age" element={<Ages />} />
-            <Route path="pipeline" element={<Pipeline />} />
-            <Route path="entonnoir" element={<Entonnoir />} />
-            <Route path="statuts" element={<Statuts />} />
-            <Route path="alertes" element={<Alertes />} />
-            <Route path="personae" element={<Personae />} />
-            <Route path="fournisseur" element={<Fournisseur />} />
+            <Route index element={<FournisseurGuard subpath=""><Dashboard /></FournisseurGuard>} />
+            <Route path="import" element={<FournisseurGuard subpath="import"><Import /></FournisseurGuard>} />
+            <Route path="commerciaux" element={<FournisseurGuard subpath="commerciaux"><Commerciaux /></FournisseurGuard>} />
+            <Route path="contrats" element={<FournisseurGuard subpath="contrats"><Contrats /></FournisseurGuard>} />
+            <Route path="hebdo" element={<FournisseurGuard subpath="hebdo"><Hebdo /></FournisseurGuard>} />
+            <Route path="hebdomadaire" element={<FournisseurGuard subpath="hebdomadaire"><Hebdo /></FournisseurGuard>} />
+            <Route path="analyse" element={<FournisseurGuard subpath="analyse"><Analyse /></FournisseurGuard>} />
+            <Route path="analyse-leads" element={<FournisseurGuard subpath="analyse-leads"><Analyse /></FournisseurGuard>} />
+            <Route path="gammes" element={<FournisseurGuard subpath="gammes"><Gammes /></FournisseurGuard>} />
+            <Route path="ages" element={<FournisseurGuard subpath="ages"><Ages /></FournisseurGuard>} />
+            <Route path="tranches-age" element={<FournisseurGuard subpath="tranches-age"><Ages /></FournisseurGuard>} />
+            <Route path="pipeline" element={<FournisseurGuard subpath="pipeline"><Pipeline /></FournisseurGuard>} />
+            <Route path="entonnoir" element={<FournisseurGuard subpath="entonnoir"><Entonnoir /></FournisseurGuard>} />
+            <Route path="statuts" element={<FournisseurGuard subpath="statuts"><Statuts /></FournisseurGuard>} />
+            <Route path="alertes" element={<FournisseurGuard subpath="alertes"><Alertes /></FournisseurGuard>} />
+            <Route path="personae" element={<FournisseurGuard subpath="personae"><Personae /></FournisseurGuard>} />
+            <Route path="fournisseur" element={<FournisseurGuard subpath="fournisseur"><Fournisseur /></FournisseurGuard>} />
             <Route path="*" element={<Navigate to="" replace />} />
           </Routes>
         </Suspense>

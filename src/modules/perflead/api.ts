@@ -162,3 +162,31 @@ export async function fetchContratsByPeriod(
     { col: 'date_souscription', from, to },
   )
 }
+
+// ── Vues PII-stripped pour le rôle fournisseur ────────────────
+// Les vues perflead_v_fournisseur_* ne retournent PAS les colonnes
+// prenom / nom / email / telephone / commentaire / attribution.
+// Le front retombe sur les mêmes types Lead / Contrat — les champs
+// manquants arrivent en undefined, chaque vue doit les traiter défensivement.
+
+export async function fetchFournisseurLeads(
+  from?: string,
+  to?: string,
+): Promise<Lead[]> {
+  return fetchAllPagedFiltered<Lead>(
+    'perflead_v_fournisseur_leads',
+    'date_creation',
+    { col: 'date_creation', from, to },
+  )
+}
+
+export async function fetchFournisseurContrats(
+  from?: string,
+  to?: string,
+): Promise<Contrat[]> {
+  return fetchAllPagedFiltered<Contrat>(
+    'perflead_v_fournisseur_contrats',
+    'date_souscription',
+    { col: 'date_souscription', from, to },
+  )
+}
