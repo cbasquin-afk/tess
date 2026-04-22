@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '../supabase'
+import { supabase } from '../supabase'
 import type { AppUser, UserRole } from '../types'
 
 interface AuthContextValue {
@@ -48,52 +48,34 @@ function isValidRole(r: unknown): r is UserRole {
 /**
  * Charge le profil perflead_users de l'utilisateur authentifié.
  *
- * On contourne délibérément `supabase.from(...)` ici et on utilise `fetch()`
- * avec un `Authorization: Bearer <access_token>` attaché manuellement.
- * Raison : juste après `signInWithPassword`, le client supabase-js peut mettre
- * quelques ticks à propager son token à la couche PostgREST interne, ce qui
- * produit des requêtes anonymes (apikey seul, sans Authorization). Avec une
- * RLS du type `auth.uid() = id`, ces requêtes anonymes retournent 0 ligne et
- * déclenchent à tort forceLogout.
- *
- * Ici on passe `session.access_token` en dur → l'Authorization header est
- * garanti peu importe l'état interne de supabase-js.
+ * On passe par la RPC `public.get_my_profile()` (SECURITY DEFINER) qui
+ * résout l'utilisateur via `auth.uid()` côté serveur. Cela contourne le
+ * problème où le header `Authorization: Bearer` n'arrivait pas à être
+ * attaché aux requêtes PostgREST directes (cause inconnue côté navigateur,
+ * cf. commit précédent 69e2af2 qui tentait un fetch() manuel sans succès).
  */
 async function fetchProfile(
   session: Session,
-): Promise<{ ok: true; data: PerfleadUserRow | null } | { ok: false; error: string }> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return { ok: false, error: 'Configuration Supabase manquante.' }
-  }
+): Promise<
+  | { ok: true; data: PerfleadUserRow | null }
+  | { ok: false; error: string }
+> {
   if (!session.access_token) {
     return { ok: false, error: 'access_token absent de la session.' }
   }
   try {
-    const qs = new URLSearchParams({
-      id: `eq.${session.user.id}`,
-      select: 'role,nom,prenom,actif',
-    })
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/perflead_users?${qs.toString()}`, {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${session.access_token}`,
-        Accept: 'application/json',
-      },
-    })
-    if (!res.ok) {
-      const body = await res.text()
-      return {
-        ok: false,
-        error: `perflead_users HTTP ${res.status} — ${body.slice(0, 200)}`,
-      }
+    const { data, error } = await supabase.rpc('get_my_profile')
+    if (error) {
+      return { ok: false, error: `get_my_profile RPC: ${error.message}` }
     }
-    const rows = (await res.json()) as PerfleadUserRow[]
-    return { ok: true, data: rows[0] ?? null }
+    // La RPC retourne une TABLE → PostgREST renvoie un tableau de lignes.
+    const profile =
+      Array.isArray(data) && data.length > 0
+        ? (data[0] as PerfleadUserRow)
+        : null
+    return { ok: true, data: profile }
   } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : String(e),
-    }
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
