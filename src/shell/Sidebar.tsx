@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { MODULES } from './modules.config'
 import { useAuth } from '../shared/auth/useAuth'
-import { hasRole, type ModuleConfig } from '../shared/types'
+import { canAccessModule, type ModuleConfig } from '../shared/types'
 import { Badge } from '../shared/ui'
 import { supabase } from '../shared/supabase'
 
@@ -111,9 +111,34 @@ export function Sidebar() {
 
   // visible mémoïsé pour éviter de re-déclencher useEffect à chaque render
   const visible = useMemo(
-    () => MODULES.filter((m) => !m.hidden && hasRole(role, m.minRole)),
+    () => MODULES.filter((m) => !m.hidden && canAccessModule(role, m)),
     [role],
   )
+
+  const isFournisseur = role === 'fournisseur'
+
+  // Sous-liens PerfLead restreints pour le rôle fournisseur :
+  // synthèse, hebdo, conversion (statuts détaillés), qualité (analyse-leads).
+  // Pas d'accès au pipeline individuel / callback / outils / import CRM.
+  const PERFLEAD_GROUPS_FOURNISSEUR: readonly PerfLeadGroup[] = [
+    {
+      label: 'DASHBOARD',
+      links: [
+        { path: '/perflead', label: '📊 Synthèse' },
+        { path: '/perflead/hebdomadaire', label: '📅 Hebdomadaire' },
+      ],
+    },
+    {
+      label: 'PERFORMANCE',
+      links: [
+        { path: '/perflead/statuts', label: '📊 Conversion' },
+        { path: '/perflead/analyse-leads', label: '🔍 Qualité leads' },
+      ],
+    },
+  ]
+  const perfleadGroups = isFournisseur
+    ? PERFLEAD_GROUPS_FOURNISSEUR
+    : PERFLEAD_GROUPS
 
   // Auto-expand : à chaque navigation, ouvrir le module dont la route matche.
   useEffect(() => {
@@ -255,7 +280,7 @@ export function Sidebar() {
 
                 {isOpen && m.path === '/perflead' && (
                   <div style={{ marginTop: 4, marginBottom: 6 }}>
-                    {PERFLEAD_GROUPS.map((group) => (
+                    {perfleadGroups.map((group) => (
                       <div key={group.label}>
                         <div
                           style={{
