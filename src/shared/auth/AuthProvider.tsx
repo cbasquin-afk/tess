@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase } from '../supabase'
+import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '../supabase'
 import type { AppUser, UserRole } from '../types'
 
 interface AuthContextValue {
@@ -43,6 +43,58 @@ const VALID_ROLES: readonly UserRole[] = [
 
 function isValidRole(r: unknown): r is UserRole {
   return typeof r === 'string' && (VALID_ROLES as readonly string[]).includes(r)
+}
+
+/**
+ * Charge le profil perflead_users de l'utilisateur authentifié.
+ *
+ * On contourne délibérément `supabase.from(...)` ici et on utilise `fetch()`
+ * avec un `Authorization: Bearer <access_token>` attaché manuellement.
+ * Raison : juste après `signInWithPassword`, le client supabase-js peut mettre
+ * quelques ticks à propager son token à la couche PostgREST interne, ce qui
+ * produit des requêtes anonymes (apikey seul, sans Authorization). Avec une
+ * RLS du type `auth.uid() = id`, ces requêtes anonymes retournent 0 ligne et
+ * déclenchent à tort forceLogout.
+ *
+ * Ici on passe `session.access_token` en dur → l'Authorization header est
+ * garanti peu importe l'état interne de supabase-js.
+ */
+async function fetchProfile(
+  session: Session,
+): Promise<{ ok: true; data: PerfleadUserRow | null } | { ok: false; error: string }> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return { ok: false, error: 'Configuration Supabase manquante.' }
+  }
+  if (!session.access_token) {
+    return { ok: false, error: 'access_token absent de la session.' }
+  }
+  try {
+    const qs = new URLSearchParams({
+      id: `eq.${session.user.id}`,
+      select: 'role,nom,prenom,actif',
+    })
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/perflead_users?${qs.toString()}`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session.access_token}`,
+        Accept: 'application/json',
+      },
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      return {
+        ok: false,
+        error: `perflead_users HTTP ${res.status} — ${body.slice(0, 200)}`,
+      }
+    }
+    const rows = (await res.json()) as PerfleadUserRow[]
+    return { ok: true, data: rows[0] ?? null }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
 }
 
 // ── Mécanisme d'affichage d'erreur sur /login après un forceLogout ────
@@ -114,29 +166,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return
       }
 
-      // Recherche par email — la colonne `id` de perflead_users n'est PAS
-      // l'UUID Supabase Auth, c'est un id interne. La colonne email est la
-      // jointure naturelle vers l'utilisateur authentifié.
-      const { data, error } = await supabase
-        .from('perflead_users')
-        .select('role, nom, prenom, actif')
-        .eq('email', email)
-        .maybeSingle<PerfleadUserRow>()
+      // perflead_users.id = auth.uid() — match direct sur la PK (RLS compat).
+      // Utilise fetchProfile() qui force un Authorization: Bearer explicite
+      // pour éviter la course d'état de supabase-js juste après signIn.
+      const result = await fetchProfile(currentSession)
 
       if (cancelled) return
 
-      if (error) {
+      if (!result.ok) {
         // eslint-disable-next-line no-console
         console.error(
           '[AuthProvider] Erreur lecture perflead_users pour',
           email,
-          error,
+          result.error,
         )
         await forceLogout(
           'Impossible de récupérer votre profil. Contactez un administrateur.',
         )
         return
       }
+
+      const data = result.data
 
       if (!data) {
         await forceLogout(
