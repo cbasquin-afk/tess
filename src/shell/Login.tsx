@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../shared/supabase'
 import { useAuth } from '../shared/auth/useAuth'
+import { popAuthError } from '../shared/auth/AuthProvider'
 import { Button } from '../shared/ui'
 
 export function Login() {
@@ -10,6 +11,14 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Récupère une éventuelle erreur d'auth poussée par l'AuthProvider lors
+  // d'une déconnexion forcée (profil manquant, compte désactivé, rôle
+  // invalide, etc.). Affichée au-dessus du formulaire au premier render.
+  useEffect(() => {
+    const err = popAuthError()
+    if (err) setError(err)
+  }, [])
 
   if (loading) {
     return <div style={{ padding: 32 }}>Chargement…</div>
