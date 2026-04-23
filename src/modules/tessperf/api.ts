@@ -1,13 +1,26 @@
 import { supabase } from '@/shared/supabase'
 import type {
   Commercial,
+  ContratDetail,
   ContratsDaily,
   LeadsDaily,
   MonthlyEquipe,
   MonthlyKpis,
   PerfParametres,
+  WeeklyEquipe,
   WeeklyKpis,
 } from './types'
+
+function last2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function monthBounds(annee: number, mois: number): { debut: string; fin: string } {
+  const debut = `${annee}-${last2(mois)}-01`
+  const finDate = new Date(annee, mois, 0)
+  const fin = `${annee}-${last2(mois)}-${last2(finDate.getDate())}`
+  return { debut, fin }
+}
 
 export async function fetchMonthlyEquipe(
   annee: number,
@@ -155,4 +168,36 @@ export async function fetchCurrentUserCommercial(
     .maybeSingle()
   if (error) throw new Error(`perf_v_commerciaux (current): ${error.message}`)
   return (data as Commercial | null) ?? null
+}
+
+// ── Nouvelles vues v2 ─────────────────────────────────────────
+export async function fetchWeeklyEquipe(
+  annee: number,
+  mois: number,
+): Promise<WeeklyEquipe[]> {
+  const { data, error } = await supabase
+    .from('tessperf_v_weekly_equipe')
+    .select('*')
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .order('semaine_debut', { ascending: true })
+  if (error) throw new Error(`tessperf_v_weekly_equipe: ${error.message}`)
+  return (data ?? []) as WeeklyEquipe[]
+}
+
+export async function fetchContratsDetail(
+  commercial_id: string,
+  annee: number,
+  mois: number,
+): Promise<ContratDetail[]> {
+  const { debut, fin } = monthBounds(annee, mois)
+  const { data, error } = await supabase
+    .from('tessperf_v_contrats_detail')
+    .select('*')
+    .eq('commercial_id', commercial_id)
+    .gte('date_signature', debut)
+    .lte('date_signature', fin)
+    .order('date_signature', { ascending: false })
+  if (error) throw new Error(`tessperf_v_contrats_detail: ${error.message}`)
+  return (data ?? []) as ContratDetail[]
 }

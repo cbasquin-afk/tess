@@ -42,36 +42,40 @@ export interface MonthlyEquipe {
   jours_ouvres_ecoules: number
   mois_passe: boolean
   mois_en_cours: boolean
-  // Volumes
-  nb_leads_total_mapapp: number
-  nb_leads_productifs: number
+  // Leads équipe
+  nb_leads_equipe_tous: number
+  nb_leads_equipe_mapapp: number
+  nb_decroches_equipe_tous: number
+  nb_signes_crm_equipe_tous: number
+  // Productifs
   nb_decroches_productifs: number
   nb_signes_productifs: number
   nb_mutuelles_productifs: number
   nb_multi_equip_productifs: number
   nb_frais_service_productifs: number
-  // CA
   ca_acquisition_productifs: number
   ca_projete_productifs: number
-  ca_acquisition_total: number
-  nb_signes_total: number
-  // Sidecars
   nb_instances_productifs: number
   nb_retractations_productifs: number
-  // KPIs
-  taux_conversion_productifs_pct: number
-  ratio_frais_service_realise: number
-  ratio_frais_service_cible: number
-  ratio_multi_equip_realise: number
-  ratio_multi_equip_cible: number
-  // Objectifs
+  // Total équipe
+  ca_acquisition_total: number
+  nb_signes_total: number
+  // Cibles
   panier_moyen_cible: number
   taux_transfo_mapapp_cible: number
+  taux_conversion_cible: number
   coef_ambition: number
+  ratio_frais_service_cible: number
+  ratio_multi_equip_cible: number
+  // Calculs
   objectif_ca_a_date: number
-  nb_leads_projete_fin_mois: number
   objectif_ca_projete_fin_mois: number
+  nb_leads_mapapp_projete: number
   pct_objectif_a_date: number
+  taux_transfo_productifs_pct: number
+  taux_conversion_productifs_pct: number
+  ratio_frais_service_realise: number
+  ratio_multi_equip_realise: number
 }
 
 export interface MonthlyKpis {
@@ -87,10 +91,12 @@ export interface MonthlyKpis {
   jours_ouvres_ecoules: number
   mois_passe: boolean
   mois_en_cours: boolean
-  // Volumes
-  nb_leads_recus: number
-  nb_leads_total_mapapp: number
+  // Contexte équipe (pas rattaché au commercial)
+  nb_leads_equipe_tous: number
+  nb_leads_equipe_mapapp: number
+  // Activité commercial
   nb_decroches: number
+  nb_signes_crm: number
   nb_contrats_signes: number
   // Source
   nb_contrats_mapapp: number
@@ -115,10 +121,9 @@ export interface MonthlyKpis {
   ca_total_societe: number
   panier_moyen_cotisation: number
   ca_moyen_par_contrat: number
-  // Projection
   ca_projete_fin_mois: number
   nb_contrats_projete: number
-  // Taux
+  // Taux (signés / décrochés — cible 25 %)
   taux_conversion_pct: number
   // Sidecars
   nb_instances_creees: number
@@ -140,6 +145,24 @@ export interface WeeklyKpis {
   nb_multi_equip: number
   nb_frais_service: number
   ca_acquisition: number
+  taux_conversion_pct: number
+}
+
+export interface WeeklyEquipe {
+  semaine_debut: string
+  semaine_fin: string
+  annee: number
+  mois: number
+  nb_leads_equipe_tous: number
+  nb_leads_equipe_mapapp: number
+  nb_decroches_equipe_tous: number
+  nb_decroches_productifs: number
+  nb_signes_productifs: number
+  nb_signes_total: number
+  ca_acquisition_productifs: number
+  ca_acquisition_total: number
+  objectif_ca: number
+  taux_transfo_pct: number
   taux_conversion_pct: number
 }
 
@@ -170,4 +193,48 @@ export interface ContratsDaily {
   ca_total_mandataire: number
 }
 
+export interface ContratDetail {
+  id: string
+  client: string
+  date_signature: string
+  date_effet: string | null
+  compagnie_assureur: string
+  type_produit: string
+  source: string
+  type_commission: string | null
+  cotisation_mensuelle: number | null
+  frais_service: number | null
+  commercial_id: string | null
+  commercial_prenom: string | null
+  ca_acquisition: number
+  ca_total: number
+  workflow_statut: string
+  statut_compagnie: string | null
+}
+
 export type FeuTricolore = 'vert' | 'orange' | 'rouge' | 'neutre'
+
+// ── Origine : filtre UI unifié ────────────────────────────────
+export const ORIGINES = [
+  'toutes',
+  'mapapp',
+  'site',
+  'recommandation',
+  'multi_equipement',
+  'back_office',
+] as const
+export type Origine = (typeof ORIGINES)[number]
+
+export const ORIGINE_LABELS: Record<Origine, string> = {
+  toutes: 'Toutes',
+  mapapp: 'Mapapp',
+  site: 'Site',
+  recommandation: 'Recommandation',
+  multi_equipement: 'Multi-équipement',
+  back_office: 'Back-office',
+}
+
+export function isOrigine(s: string | null | undefined): s is Origine {
+  if (!s) return false
+  return (ORIGINES as readonly string[]).includes(s)
+}

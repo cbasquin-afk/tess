@@ -1,17 +1,22 @@
-import { Link } from 'react-router-dom'
+import { Link, type Location } from 'react-router-dom'
 import type { Commercial } from '../types'
 
-interface CommercialSelectorProps {
+interface Props {
   commerciaux: Commercial[]
   activeId: string | 'equipe'
-  hideEquipe?: boolean
+  section: 'mensuel' | 'hebdomadaire'
+  location: Location
 }
 
 export function CommercialSelector({
   commerciaux,
   activeId,
-  hideEquipe,
-}: CommercialSelectorProps) {
+  section,
+  location,
+}: Props) {
+  // Conserve la query string (mois, origine) à travers les changements de vue.
+  const qs = location.search || ''
+
   return (
     <div
       style={{
@@ -22,13 +27,15 @@ export function CommercialSelector({
         borderRadius: 8,
       }}
     >
-      {!hideEquipe && (
-        <TabLink to="/tessperf" active={activeId === 'equipe'} label="Équipe" />
-      )}
+      <TabLink
+        to={`/tessperf/${section}/equipe${qs}`}
+        active={activeId === 'equipe'}
+        label="Équipe"
+      />
       {commerciaux.map((c) => (
         <TabLink
           key={c.id}
-          to={`/tessperf/commercial/${c.id}`}
+          to={`/tessperf/${section}/commercial/${c.id}${qs}`}
           active={activeId === c.id}
           label={c.prenom}
         />
