@@ -115,30 +115,10 @@ export function Sidebar() {
     [role],
   )
 
-  const isFournisseur = role === 'fournisseur'
-
-  // Sous-liens PerfLead restreints pour le rôle fournisseur :
-  // synthèse, hebdo, conversion (statuts détaillés), qualité (analyse-leads).
-  // Pas d'accès au pipeline individuel / callback / outils / import CRM.
-  const PERFLEAD_GROUPS_FOURNISSEUR: readonly PerfLeadGroup[] = [
-    {
-      label: 'DASHBOARD',
-      links: [
-        { path: '/perflead', label: '📊 Synthèse' },
-        { path: '/perflead/hebdomadaire', label: '📅 Hebdomadaire' },
-      ],
-    },
-    {
-      label: 'PERFORMANCE',
-      links: [
-        { path: '/perflead/statuts', label: '📊 Conversion' },
-        { path: '/perflead/analyse-leads', label: '🔍 Qualité leads' },
-      ],
-    },
-  ]
-  const perfleadGroups = isFournisseur
-    ? PERFLEAD_GROUPS_FOURNISSEUR
-    : PERFLEAD_GROUPS
+  // Le fournisseur voit désormais TOUS les sous-liens PerfLead. Les autres
+  // modules restent masqués pour lui via canAccessModule (ROLE_RANK=0 + pas
+  // d'allowedRoles ailleurs que sur PerfLead).
+  const perfleadGroups = PERFLEAD_GROUPS
 
   // Auto-expand : à chaque navigation, ouvrir le module dont la route matche.
   useEffect(() => {
