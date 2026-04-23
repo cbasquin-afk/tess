@@ -28,6 +28,14 @@ export const MODULES: ModuleConfig[] = [
     loader: () => import('../modules/simulateur'),
   },
   {
+    id: 'tessperf',
+    label: 'TessPerf',
+    icon: '📈',
+    path: '/tessperf',
+    minRole: 'commercial',
+    loader: () => import('../modules/tessperf'),
+  },
+  {
     id: 'admin',
     label: 'Administration',
     icon: '⚙️',
