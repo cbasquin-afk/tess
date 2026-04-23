@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchLeadsByPeriod } from '../api'
+import { fetchFournisseurLeads, fetchLeadsByPeriod } from '../api'
+import { useAuth } from '@/shared/auth/useAuth'
 import { usePerfLeadFilters } from '../context/FiltersContext'
 import { PIOCHE_VALUE } from '../components/FilterBar'
 import type { Lead } from '../types'
@@ -14,6 +15,7 @@ function matchCommercial(l: Lead, commercial: string): boolean {
 
 export function useLeads() {
   const { filters } = usePerfLeadFilters()
+  const { role } = useAuth()
   const [raw, setRaw] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -24,7 +26,9 @@ export function useLeads() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetchLeadsByPeriod(
+    const fetcher =
+      role === 'fournisseur' ? fetchFournisseurLeads : fetchLeadsByPeriod
+    fetcher(
       filters.dateFrom || undefined,
       filters.dateTo || undefined,
     )
@@ -40,7 +44,7 @@ export function useLeads() {
     return () => {
       cancelled = true
     }
-  }, [filters.dateFrom, filters.dateTo])
+  }, [filters.dateFrom, filters.dateTo, role])
 
   // Filtres client-side : commercial / catégorie / origine / verticale
   const leads = useMemo(() => {

@@ -11,7 +11,7 @@ const Forbidden = lazyWithRetry(() => import('./shell/Forbidden'))
 function lazyModule(m: ModuleConfig) {
   const Component = lazyWithRetry(m.loader)
   const element = (
-    <AuthGuard minRole={m.minRole}>
+    <AuthGuard minRole={m.minRole} allowedRoles={m.allowedRoles}>
       <Component />
     </AuthGuard>
   )

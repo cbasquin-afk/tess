@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchContratsByPeriod } from '../api'
+import { fetchContratsByPeriod, fetchFournisseurContrats } from '../api'
+import { useAuth } from '@/shared/auth/useAuth'
 import { usePerfLeadFilters } from '../context/FiltersContext'
 import { PIOCHE_VALUE } from '../components/FilterBar'
 import type { Contrat } from '../types'
@@ -14,6 +15,7 @@ function matchCommercial(c: Contrat, commercial: string): boolean {
 
 export function useContrats() {
   const { filters } = usePerfLeadFilters()
+  const { role } = useAuth()
   const [raw, setRaw] = useState<Contrat[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +24,9 @@ export function useContrats() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetchContratsByPeriod(
+    const fetcher =
+      role === 'fournisseur' ? fetchFournisseurContrats : fetchContratsByPeriod
+    fetcher(
       filters.dateFrom || undefined,
       filters.dateTo || undefined,
     )
@@ -38,7 +42,7 @@ export function useContrats() {
     return () => {
       cancelled = true
     }
-  }, [filters.dateFrom, filters.dateTo])
+  }, [filters.dateFrom, filters.dateTo, role])
 
   // Filtres client-side : commercial / origine / verticale
   // (le filtre catégorie ne s'applique pas aux contrats)

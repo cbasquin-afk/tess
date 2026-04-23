@@ -15,6 +15,8 @@ export const MODULES: ModuleConfig[] = [
     icon: '🎯',
     path: '/perflead',
     minRole: 'commercial',
+    // Accès explicite aux fournisseurs externes (vue restreinte sans PII).
+    allowedRoles: ['fournisseur'],
     loader: () => import('../modules/perflead'),
   },
   {

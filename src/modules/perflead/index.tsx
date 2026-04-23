@@ -22,6 +22,9 @@ const Fournisseur = lazyWithRetry(() => import('./views/Fournisseur'))
 function PerfLeadModule() {
   // FilterBar dans le flux normal du contenu (le Shell.main fournit déjà
   // le padding 32). Sticky top: 56 la cale sous la Topbar lors du scroll.
+  // Les fournisseurs accèdent à toutes les sous-routes PerfLead. Le garde-fou
+  // "uniquement PerfLead" est appliqué au niveau router (allowedRoles) +
+  // AuthGuard (redirect /perflead si autre module tenté).
   return (
     <PerfLeadFiltersProvider>
       <FilterBar />
