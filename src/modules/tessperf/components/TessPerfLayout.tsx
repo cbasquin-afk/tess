@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/shared/auth/useAuth'
 import { hasRole } from '@/shared/types'
@@ -74,22 +74,32 @@ export default function TessPerfLayout({ section, scope, children }: Props) {
   }, [])
 
   // Redirection automatique commercial productif non-admin → sa fiche.
+  // Garde-fou : on ne la déclenche qu'une seule fois par session d'email
+  // pour éviter de re-tirer à chaque patch de query string (et pour ne
+  // jamais boucler sur soi-même si l'utilisateur revient sur l'équipe
+  // volontairement — ce qui ne devrait de toute façon pas se produire
+  // car le sélecteur "Équipe" n'est affiché qu'aux admins).
+  const redirectedForEmail = useRef<string | null>(null)
   useEffect(() => {
     if (!user?.email) return
     if (scope !== 'equipe') return
-    if (hasRole(role, 'admin')) return // admin reste libre sur l'équipe
+    if (hasRole(role, 'admin')) return
+    if (redirectedForEmail.current === user.email) return
+    redirectedForEmail.current = user.email
     fetchCurrentUserCommercial(user.email).then((c) => {
-      if (!c) return
-      if (c.statut === 'actif_productif') {
-        const qs = new URLSearchParams()
-        if (search.get('annee')) qs.set('annee', search.get('annee')!)
-        if (search.get('mois')) qs.set('mois', search.get('mois')!)
-        if (search.get('origine')) qs.set('origine', search.get('origine')!)
-        const suffix = qs.toString() ? `?${qs.toString()}` : ''
-        navigate(`/tessperf/${section}/commercial/${c.id}${suffix}`, { replace: true })
-      }
+      if (!c || c.statut !== 'actif_productif') return
+      const qs = new URLSearchParams()
+      const a = search.get('annee'); if (a) qs.set('annee', a)
+      const m = search.get('mois'); if (m) qs.set('mois', m)
+      const o = search.get('origine'); if (o) qs.set('origine', o)
+      const suffix = qs.toString() ? `?${qs.toString()}` : ''
+      navigate(`/tessperf/${section}/commercial/${c.id}${suffix}`, { replace: true })
     })
-  }, [user, role, scope, section, navigate, search])
+    // Déps réduites : on ne refire QUE si l'user change réellement,
+    // pas à chaque update de search/navigate (qui sont des callbacks
+    // potentiellement recréés à chaque render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email, role, scope, section])
 
   // Vérif accès vue commercial
   useEffect(() => {
