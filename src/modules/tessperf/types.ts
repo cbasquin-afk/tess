@@ -212,6 +212,52 @@ export interface ContratDetail {
   statut_compagnie: string | null
 }
 
+export interface MonthlyParOrigine {
+  annee: number
+  mois: number
+  mois_libelle: string
+  origine: string
+  nb_leads_equipe: number
+  nb_decroches_equipe: number
+  nb_decroches_productifs: number
+  nb_signes_productifs: number
+  nb_signes_mutuelle: number
+  nb_signes_obseques: number
+  nb_signes_prevoyance: number
+  nb_signes_emprunteur: number
+  nb_signes_animal: number
+  nb_signes_autre: number
+  nb_signes_total: number
+  ca_acquisition_total: number
+  nb_frais_service: number
+  total_frais_service: number
+  cotisation_totale: number
+  ca_acquisition_productifs: number
+  taux_transfo_pct: number
+  taux_conversion_pct: number
+  panier_moyen_cotisation: number
+  ca_moyen_par_contrat: number
+}
+
+export interface MonthlyParOrigineCommercial {
+  annee: number
+  mois: number
+  mois_libelle: string
+  commercial_id: string
+  commercial_prenom: string
+  commercial_statut: string
+  origine: string
+  nb_decroches: number
+  nb_signes_crm: number
+  nb_contrats_signes: number
+  nb_contrats_mutuelle: number
+  nb_frais_service: number
+  total_frais_service: number
+  cotisation_totale: number
+  ca_acquisition: number
+  taux_conversion_pct: number
+}
+
 export type FeuTricolore = 'vert' | 'orange' | 'rouge' | 'neutre'
 
 // ── Origine : filtre UI unifié ────────────────────────────────

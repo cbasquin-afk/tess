@@ -1,50 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  fetchContratsDaily,
-  fetchLeadsDaily,
   fetchMonthlyEquipe,
   fetchMonthlyKpisAllCommerciaux,
   fetchMonthlyKpisByCommercial,
+  fetchMonthlyParOrigine,
+  fetchMonthlyParOrigineCommercial,
 } from '../api'
 import type {
-  ContratsDaily,
-  LeadsDaily,
   MonthlyEquipe,
   MonthlyKpis,
+  MonthlyParOrigine,
+  MonthlyParOrigineCommercial,
   Origine,
 } from '../types'
-
-function monthRange(annee: number, mois: number): { debut: string; fin: string } {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const debut = `${annee}-${pad(mois)}-01`
-  const finDate = new Date(annee, mois, 0)
-  const fin = `${annee}-${pad(mois)}-${pad(finDate.getDate())}`
-  return { debut, fin }
-}
-
-// Mapping Origine UI → valeur `source` dans tessperf_v_contrats_daily
-function sourceFor(o: Origine): string | null {
-  switch (o) {
-    case 'mapapp': return 'mapapp'
-    case 'site': return 'site'
-    case 'recommandation': return 'recommandation'
-    case 'multi_equipement': return 'multi_equipement'
-    case 'back_office': return 'back_office'
-    case 'toutes': return null
-  }
-}
-
-// Mapping Origine UI → valeur `origine` dans tessperf_v_leads_daily (si identique)
-function originFor(o: Origine): string | null {
-  switch (o) {
-    case 'mapapp': return 'mapapp'
-    case 'site': return 'site'
-    case 'recommandation': return 'recommandation'
-    case 'multi_equipement': return 'multi_equipement'
-    case 'back_office': return 'back_office'
-    case 'toutes': return null
-  }
-}
 
 interface ProduitCounts {
   mutuelle: number
@@ -55,175 +23,103 @@ interface ProduitCounts {
   autre: number
 }
 
-interface SourceCounts {
-  mapapp: number
-  site: number
-  back_office: number
-  recommandation: number
-  multi_equipement: number
-}
-
 /**
- * Filtre les KPIs équipe côté front quand une origine est sélectionnée.
+ * État combiné pour la vue Équipe.
  *
- * Ce qui est recalculé :
- *  - nb_leads / nb_decroches / nb_signes
- *  - ventilations source + produit
- *  - CA acquisition / projection (sur la sélection)
- *  - ratios frais service / multi-équipement
+ *   - `base` = tessperf_v_monthly_equipe (toujours présent) : fournit l'objectif
+ *     CA, les cibles, les données contextuelles (jours ouvrés, flags temporels).
+ *   - `origineData` = tessperf_v_monthly_par_origine (présent SI origine ≠ toutes)
+ *     : fournit les KPIs FILTRÉS (leads, décrochés, signés, CA, ratios).
+ *   - `origine` = valeur active du filtre.
  *
- * Ce qui reste identique (Mapapp-based) :
- *  - objectif_ca_a_date, objectif_ca_projete_fin_mois
- *  - pct_objectif_a_date (CA productifs total / objectif Mapapp)
+ * Quand `origine === 'toutes'`, on expose juste `base` et tous les KPIs
+ * viennent de là (pas de merge nécessaire).
  */
-interface FilteredEquipe {
+export interface FilteredEquipe {
   base: MonthlyEquipe
   origine: Origine
-  // Overrides calculés depuis daily quand origine ≠ 'toutes'
-  nb_leads_filtre: number
-  nb_decroches_productifs_filtre: number
-  nb_signes_productifs_filtre: number
-  ca_acquisition_productifs_filtre: number
-  source_counts: SourceCounts
-  produit_counts: ProduitCounts
-  taux_transfo_filtre_pct: number
-  taux_conversion_filtre_pct: number
+  origineData: MonthlyParOrigine | null
 }
 
 export function useMonthlyFilteredEquipe(
   annee: number,
   mois: number,
   origine: Origine,
-  productifIds: string[],
+  _productifIds: string[], // plus utilisé (agrégation DB), gardé pour compat
 ) {
-  const [base, setBase] = useState<MonthlyEquipe | null>(null)
+  void _productifIds
+  const [data, setData] = useState<FilteredEquipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dailyContrats, setDailyContrats] = useState<ContratsDaily[]>([])
-  const [dailyLeads, setDailyLeads] = useState<LeadsDaily[]>([])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
-    const { debut, fin } = monthRange(annee, mois)
     Promise.all([
       fetchMonthlyEquipe(annee, mois),
-      fetchContratsDaily(null, debut, fin),
-      fetchLeadsDaily(null, debut, fin),
+      origine === 'toutes'
+        ? Promise.resolve(null)
+        : fetchMonthlyParOrigine(annee, mois, origine),
     ])
-      .then(([m, cs, ls]) => {
+      .then(([base, origineData]) => {
         if (cancelled) return
-        setBase(m)
-        setDailyContrats(cs)
-        setDailyLeads(ls)
+        if (!base) {
+          setData(null)
+          return
+        }
+        setData({ base, origine, origineData })
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [annee, mois])
+  }, [annee, mois, origine])
 
-  const filtered = useMemo<FilteredEquipe | null>(() => {
-    if (!base) return null
-
-    const src = sourceFor(origine)
-    const orig = originFor(origine)
-    const productifSet = new Set(productifIds)
-
-    // Contrats filtrés par source si besoin, limités aux productifs
-    const contratsFiltres = dailyContrats.filter((c) => {
-      if (!c.commercial_id || !productifSet.has(c.commercial_id)) return false
-      if (src !== null && c.source !== src) return false
-      return true
-    })
-    // Leads filtrés par origine si besoin, limités aux productifs
-    const leadsFiltres = dailyLeads.filter((l) => {
-      if (!l.commercial_id || !productifSet.has(l.commercial_id)) return false
-      if (orig !== null && (l as { origine?: string | null }).origine !== orig) {
-        // LeadsDaily n'a pas d'origine côté vue actuelle — fallback : on laisse passer
-        // quand orig est défini et qu'on ne peut pas filtrer (dégradation douce).
-        return true
-      }
-      return true
-    })
-
-    const nb_signes_productifs_filtre = contratsFiltres.reduce(
-      (s, c) => s + Number(c.nb_contrats ?? 0),
-      0,
-    )
-    const ca_acquisition_productifs_filtre = contratsFiltres.reduce(
-      (s, c) => s + Number(c.ca_acquisition_societe ?? 0),
-      0,
-    )
-    const nb_decroches_productifs_filtre = leadsFiltres.reduce(
-      (s, l) => s + Number(l.nb_decroches ?? 0),
-      0,
-    )
-    const nb_leads_filtre = leadsFiltres.reduce(
-      (s, l) => s + Number(l.nb_leads ?? 0),
-      0,
-    )
-
-    // Ventilations
-    const source_counts: SourceCounts = {
-      mapapp: 0, site: 0, back_office: 0, recommandation: 0, multi_equipement: 0,
-    }
-    const produit_counts: ProduitCounts = {
-      mutuelle: 0, obseques: 0, prevoyance: 0, emprunteur: 0, animal: 0, autre: 0,
-    }
-    for (const c of contratsFiltres) {
-      const n = Number(c.nb_contrats ?? 0)
-      if ((Object.keys(source_counts) as (keyof SourceCounts)[]).includes(c.source as keyof SourceCounts)) {
-        source_counts[c.source as keyof SourceCounts] += n
-      }
-      const k = c.type_produit as keyof ProduitCounts
-      if ((Object.keys(produit_counts) as (keyof ProduitCounts)[]).includes(k)) {
-        produit_counts[k] += n
-      } else {
-        produit_counts.autre += n
-      }
-    }
-
-    // Taux — seulement significatif quand origine Mapapp sélectionnée
-    const taux_transfo_filtre_pct =
-      origine === 'mapapp' && Number(base.nb_leads_equipe_mapapp) > 0
-        ? (nb_signes_productifs_filtre / Number(base.nb_leads_equipe_mapapp)) * 100
-        : Number(base.taux_transfo_productifs_pct)
-    const taux_conversion_filtre_pct =
-      nb_decroches_productifs_filtre > 0
-        ? (nb_signes_productifs_filtre / nb_decroches_productifs_filtre) * 100
-        : 0
-
-    return {
-      base,
-      origine,
-      nb_leads_filtre,
-      nb_decroches_productifs_filtre,
-      nb_signes_productifs_filtre,
-      ca_acquisition_productifs_filtre,
-      source_counts,
-      produit_counts,
-      taux_transfo_filtre_pct,
-      taux_conversion_filtre_pct,
-    }
-  }, [base, dailyContrats, dailyLeads, origine, productifIds])
-
-  return { data: filtered, loading, error }
+  return { data, loading, error }
 }
 
-// ── Commercial individuel — override ventilations par source + produit ──
-interface FilteredCommercial {
+/**
+ * Projette les compteurs produit de MonthlyParOrigine vers un objet homogène.
+ * Utilisé par la vue équipe quand un filtre d'origine est actif.
+ */
+export function produitCountsFromOrigine(p: MonthlyParOrigine): ProduitCounts {
+  return {
+    mutuelle: Number(p.nb_signes_mutuelle ?? 0),
+    obseques: Number(p.nb_signes_obseques ?? 0),
+    prevoyance: Number(p.nb_signes_prevoyance ?? 0),
+    emprunteur: Number(p.nb_signes_emprunteur ?? 0),
+    animal: Number(p.nb_signes_animal ?? 0),
+    autre: Number(p.nb_signes_autre ?? 0),
+  }
+}
+
+/**
+ * Projette les compteurs produit d'un MonthlyEquipe (sans filtre).
+ * Renvoie seulement les mutuelles + une ventilation nulle pour les autres
+ * produits : la vue monthly_equipe n'a pas le détail par produit (seulement
+ * nb_mutuelles_productifs). Pour la ventilation complète on bascule sur
+ * MonthlyKpis agrégé par commercial.
+ */
+export function produitCountsFromKpis(rows: MonthlyKpis[]): ProduitCounts {
+  return rows.reduce(
+    (acc, r) => ({
+      mutuelle: acc.mutuelle + Number(r.nb_contrats_mutuelle ?? 0),
+      obseques: acc.obseques + Number(r.nb_contrats_obseques ?? 0),
+      prevoyance: acc.prevoyance + Number(r.nb_contrats_prevoyance ?? 0),
+      emprunteur: acc.emprunteur + Number(r.nb_contrats_emprunteur ?? 0),
+      animal: acc.animal + Number(r.nb_contrats_animal ?? 0),
+      autre: acc.autre + Number(r.nb_contrats_autre ?? 0),
+    }),
+    { mutuelle: 0, obseques: 0, prevoyance: 0, emprunteur: 0, animal: 0, autre: 0 },
+  )
+}
+
+export interface FilteredCommercial {
   base: MonthlyKpis
   origine: Origine
-  // Override contrats filtrés par source si origine ≠ toutes
-  nb_contrats_signes_filtre: number
-  ca_acquisition_filtre: number
-  nb_decroches_filtre: number
-  source_counts: SourceCounts
-  produit_counts: ProduitCounts
-  taux_conversion_filtre_pct: number
+  origineData: MonthlyParOrigineCommercial | null
 }
 
 export function useMonthlyFilteredCommercial(
@@ -232,92 +128,37 @@ export function useMonthlyFilteredCommercial(
   mois: number,
   origine: Origine,
 ) {
-  const [base, setBase] = useState<MonthlyKpis | null>(null)
+  const [data, setData] = useState<FilteredCommercial | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dailyContrats, setDailyContrats] = useState<ContratsDaily[]>([])
-  const [dailyLeads, setDailyLeads] = useState<LeadsDaily[]>([])
 
   useEffect(() => {
     if (!commercial_id) return
     let cancelled = false
     setLoading(true)
     setError(null)
-    const { debut, fin } = monthRange(annee, mois)
     Promise.all([
       fetchMonthlyKpisByCommercial(commercial_id, annee, mois),
-      fetchContratsDaily(commercial_id, debut, fin),
-      fetchLeadsDaily(commercial_id, debut, fin),
+      origine === 'toutes'
+        ? Promise.resolve(null)
+        : fetchMonthlyParOrigineCommercial(commercial_id, annee, mois, origine),
     ])
-      .then(([m, cs, ls]) => {
+      .then(([base, origineData]) => {
         if (cancelled) return
-        setBase(m)
-        setDailyContrats(cs)
-        setDailyLeads(ls)
+        if (!base) {
+          setData(null)
+          return
+        }
+        setData({ base, origine, origineData })
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [commercial_id, annee, mois])
+  }, [commercial_id, annee, mois, origine])
 
-  const filtered = useMemo<FilteredCommercial | null>(() => {
-    if (!base) return null
-
-    const src = sourceFor(origine)
-    const orig = originFor(origine)
-
-    const contrats = dailyContrats.filter((c) =>
-      src === null ? true : c.source === src,
-    )
-    const leads = dailyLeads.filter((l) => {
-      if (orig === null) return true
-      const o = (l as { origine?: string | null }).origine
-      return o === orig || !o // dégradation douce si colonne absente
-    })
-
-    const nb_contrats_signes_filtre = contrats.reduce((s, c) => s + Number(c.nb_contrats ?? 0), 0)
-    const ca_acquisition_filtre = contrats.reduce((s, c) => s + Number(c.ca_acquisition_societe ?? 0), 0)
-    const nb_decroches_filtre = leads.reduce((s, l) => s + Number(l.nb_decroches ?? 0), 0)
-
-    const source_counts: SourceCounts = {
-      mapapp: 0, site: 0, back_office: 0, recommandation: 0, multi_equipement: 0,
-    }
-    const produit_counts: ProduitCounts = {
-      mutuelle: 0, obseques: 0, prevoyance: 0, emprunteur: 0, animal: 0, autre: 0,
-    }
-    for (const c of contrats) {
-      const n = Number(c.nb_contrats ?? 0)
-      if ((Object.keys(source_counts) as (keyof SourceCounts)[]).includes(c.source as keyof SourceCounts)) {
-        source_counts[c.source as keyof SourceCounts] += n
-      }
-      const k = c.type_produit as keyof ProduitCounts
-      if ((Object.keys(produit_counts) as (keyof ProduitCounts)[]).includes(k)) {
-        produit_counts[k] += n
-      } else {
-        produit_counts.autre += n
-      }
-    }
-
-    const taux_conversion_filtre_pct =
-      nb_decroches_filtre > 0
-        ? (nb_contrats_signes_filtre / nb_decroches_filtre) * 100
-        : 0
-
-    return {
-      base,
-      origine,
-      nb_contrats_signes_filtre,
-      ca_acquisition_filtre,
-      nb_decroches_filtre,
-      source_counts,
-      produit_counts,
-      taux_conversion_filtre_pct,
-    }
-  }, [base, dailyContrats, dailyLeads, origine])
-
-  return { data: filtered, loading, error }
+  return { data, loading, error }
 }
 
 // ── Utilitaire pour le footer équipe ──

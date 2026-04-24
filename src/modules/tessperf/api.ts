@@ -6,6 +6,8 @@ import type {
   LeadsDaily,
   MonthlyEquipe,
   MonthlyKpis,
+  MonthlyParOrigine,
+  MonthlyParOrigineCommercial,
   PerfParametres,
   WeeklyEquipe,
   WeeklyKpis,
@@ -183,6 +185,54 @@ export async function fetchWeeklyEquipe(
     .order('semaine_debut', { ascending: true })
   if (error) throw new Error(`tessperf_v_weekly_equipe: ${error.message}`)
   return (data ?? []) as WeeklyEquipe[]
+}
+
+/**
+ * KPIs équipe filtrés par origine (une ligne par mois × origine).
+ * Retourne null si origine = 'toutes' → l'appelant doit lire
+ * tessperf_v_monthly_equipe à la place.
+ */
+export async function fetchMonthlyParOrigine(
+  annee: number,
+  mois: number,
+  origine: string,
+): Promise<MonthlyParOrigine | null> {
+  if (origine === 'toutes') return null
+  const { data, error } = await supabase
+    .from('tessperf_v_monthly_par_origine')
+    .select('*')
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .eq('origine', origine)
+    .maybeSingle()
+  if (error) throw new Error(`tessperf_v_monthly_par_origine: ${error.message}`)
+  return (data as MonthlyParOrigine | null) ?? null
+}
+
+/**
+ * KPIs commercial filtrés par origine (une ligne par mois × commercial × origine).
+ * Retourne null si origine = 'toutes' → l'appelant doit lire
+ * tessperf_v_monthly_kpis à la place.
+ */
+export async function fetchMonthlyParOrigineCommercial(
+  commercial_id: string,
+  annee: number,
+  mois: number,
+  origine: string,
+): Promise<MonthlyParOrigineCommercial | null> {
+  if (origine === 'toutes') return null
+  const { data, error } = await supabase
+    .from('tessperf_v_monthly_par_origine_commercial')
+    .select('*')
+    .eq('commercial_id', commercial_id)
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .eq('origine', origine)
+    .maybeSingle()
+  if (error) {
+    throw new Error(`tessperf_v_monthly_par_origine_commercial: ${error.message}`)
+  }
+  return (data as MonthlyParOrigineCommercial | null) ?? null
 }
 
 export async function fetchContratsDetail(
