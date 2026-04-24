@@ -9,6 +9,7 @@ interface Entry {
 const ENTRIES: readonly Entry[] = [
   { path: '/tessperf/mensuel', label: 'Mensuel', icon: '📅' },
   { path: '/tessperf/hebdomadaire', label: 'Hebdomadaire', icon: '📊' },
+  { path: '/tessperf/barometre', label: 'Baromètre', icon: '🌡️' },
 ]
 
 export function SubNav() {

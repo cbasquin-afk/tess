@@ -26,7 +26,7 @@ interface RenderCtx {
 
 interface Props {
   /** "mensuel" | "hebdomadaire" — décrit l'onglet courant pour piloter l'URL. */
-  section: 'mensuel' | 'hebdomadaire'
+  section: 'mensuel' | 'hebdomadaire' | 'barometre'
   /** "equipe" | "commercial" — détermine si :id est utilisé. */
   scope: 'equipe' | 'commercial'
   /** Rendu du contenu principal, reçoit le contexte courant. */

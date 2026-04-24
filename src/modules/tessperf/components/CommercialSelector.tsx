@@ -4,7 +4,7 @@ import type { Commercial } from '../types'
 interface Props {
   commerciaux: Commercial[]
   activeId: string | 'equipe'
-  section: 'mensuel' | 'hebdomadaire'
+  section: 'mensuel' | 'hebdomadaire' | 'barometre'
   location: Location
 }
 
