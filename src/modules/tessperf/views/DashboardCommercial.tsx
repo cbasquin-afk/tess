@@ -18,14 +18,6 @@ const SOURCE_LABELS: Record<string, string> = {
   recommandation: 'Recommandation',
   multi_equipement: 'Multi-équipement',
 }
-const PRODUIT_LABELS: Record<string, string> = {
-  mutuelle: 'Mutuelle',
-  obseques: 'Obsèques',
-  prevoyance: 'Prévoyance',
-  emprunteur: 'Emprunteur',
-  animal: 'Animal',
-  autre: 'Autre',
-}
 
 export default function DashboardCommercial() {
   return (
@@ -78,31 +70,63 @@ function CommercialContent({
     )
   }
 
-  const { base } = filtered
-  const origineActive = origine !== 'toutes'
+  const { base, origineData } = filtered
+  const origineActive = origine !== 'toutes' && origineData !== null
   const prenom =
     base.commercial_prenom ??
     commerciaux.find((c) => c.id === id)?.prenom ??
     '—'
 
-  const nbSignes = origineActive ? filtered.nb_contrats_signes_filtre : Number(base.nb_contrats_signes)
-  const nbDecroches = origineActive ? filtered.nb_decroches_filtre : Number(base.nb_decroches)
-  const caAcq = origineActive ? filtered.ca_acquisition_filtre : Number(base.ca_acquisition)
+  const nbSignes = origineActive
+    ? Number(origineData.nb_contrats_signes)
+    : Number(base.nb_contrats_signes)
+  const nbDecroches = origineActive
+    ? Number(origineData.nb_decroches)
+    : Number(base.nb_decroches)
+  const caAcq = origineActive
+    ? Number(origineData.ca_acquisition)
+    : Number(base.ca_acquisition)
   const tauxConv = origineActive
-    ? filtered.taux_conversion_filtre_pct
+    ? Number(origineData.taux_conversion_pct)
     : Number(base.taux_conversion_pct)
-  const tauxConvCible = 25 // cible équipe, utilisée aussi pour l'individu
+  const tauxConvCible = 25
 
-  const sourceSlices = Object.entries(filtered.source_counts).map(([k, v], i) => ({
-    label: SOURCE_LABELS[k] ?? k,
-    value: v,
-    color: colorForIndex(i),
-  }))
-  const produitSlices = Object.entries(filtered.produit_counts).map(([k, v], i) => ({
-    label: PRODUIT_LABELS[k] ?? k,
-    value: v,
-    color: colorForIndex(i),
-  }))
+  // Ventilation source : mono-tranche quand filtre actif, sinon les 5 sources
+  // issues de la base MonthlyKpis.
+  const sourceSlices = origineActive
+    ? [{
+        label: SOURCE_LABELS[origine] ?? origine,
+        value: nbSignes,
+        color: colorForIndex(0),
+      }]
+    : [
+        { label: 'Mapapp', value: Number(base.nb_contrats_mapapp ?? 0), color: colorForIndex(0) },
+        { label: 'Site', value: Number(base.nb_contrats_site ?? 0), color: colorForIndex(1) },
+        { label: 'Back-office', value: Number(base.nb_contrats_bo ?? 0), color: colorForIndex(2) },
+        { label: 'Recommandation', value: Number(base.nb_contrats_reco ?? 0), color: colorForIndex(3) },
+        { label: 'Multi-équipement', value: Number(base.nb_contrats_multi_equip ?? 0), color: colorForIndex(4) },
+      ]
+
+  // Ventilation produit : la vue par_origine_commercial n'a que
+  // nb_contrats_mutuelle. Pour éviter une ventilation fausse, quand un filtre
+  // est actif et qu'on n'a que "mutuelle", on montre juste mutuelle + autre.
+  const produitSlices = origineActive
+    ? [
+        { label: 'Mutuelle', value: Number(origineData.nb_contrats_mutuelle ?? 0), color: colorForIndex(0) },
+        {
+          label: 'Autre',
+          value: Math.max(0, nbSignes - Number(origineData.nb_contrats_mutuelle ?? 0)),
+          color: colorForIndex(5),
+        },
+      ]
+    : [
+        { label: 'Mutuelle', value: Number(base.nb_contrats_mutuelle ?? 0), color: colorForIndex(0) },
+        { label: 'Obsèques', value: Number(base.nb_contrats_obseques ?? 0), color: colorForIndex(1) },
+        { label: 'Prévoyance', value: Number(base.nb_contrats_prevoyance ?? 0), color: colorForIndex(2) },
+        { label: 'Emprunteur', value: Number(base.nb_contrats_emprunteur ?? 0), color: colorForIndex(3) },
+        { label: 'Animal', value: Number(base.nb_contrats_animal ?? 0), color: colorForIndex(4) },
+        { label: 'Autre', value: Number(base.nb_contrats_autre ?? 0), color: colorForIndex(5) },
+      ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -188,19 +212,43 @@ function CommercialContent({
 
       {/* Zone 4 — Qualité individuelle */}
       <Section title="Qualité">
-        <RatioQualite
-          label="Frais de service"
-          realisePct={Number(base.ratio_frais_service_realise) * 100}
-          ciblePct={(parametres?.ratio_frais_service_cible ?? 0.3333) * 100}
-          caption={`${fmtInt(base.nb_frais_service)} / ${fmtInt(base.nb_contrats_mutuelle)} mutuelles`}
-          valueExtra={`Total perçu : ${fmtEURDecimal(base.total_frais_service)}`}
-        />
-        <RatioQualite
-          label="Multi-équipement"
-          realisePct={Number(base.ratio_multi_equip_realise) * 100}
-          ciblePct={(parametres?.ratio_multi_equip_cible ?? 0.2) * 100}
-          caption={`${fmtInt(base.nb_contrats_multi_equip)} / ${fmtInt(base.nb_contrats_mutuelle)} mutuelles`}
-        />
+        {origineActive ? (() => {
+          const nbFrais = Number(origineData.nb_frais_service)
+          const nbMut = Number(origineData.nb_contrats_mutuelle)
+          return (
+            <>
+              <RatioQualite
+                label="Frais de service"
+                realisePct={nbMut > 0 ? (nbFrais / nbMut) * 100 : 0}
+                ciblePct={(parametres?.ratio_frais_service_cible ?? 0.3333) * 100}
+                caption={`${fmtInt(nbFrais)} / ${fmtInt(nbMut)} mutuelles (${origine})`}
+                valueExtra={`Total perçu : ${fmtEURDecimal(origineData.total_frais_service)}`}
+              />
+              <RatioQualite
+                label="Multi-équipement"
+                realisePct={Number(base.ratio_multi_equip_realise) * 100}
+                ciblePct={(parametres?.ratio_multi_equip_cible ?? 0.2) * 100}
+                caption="Non filtré par origine"
+              />
+            </>
+          )
+        })() : (
+          <>
+            <RatioQualite
+              label="Frais de service"
+              realisePct={Number(base.ratio_frais_service_realise) * 100}
+              ciblePct={(parametres?.ratio_frais_service_cible ?? 0.3333) * 100}
+              caption={`${fmtInt(base.nb_frais_service)} / ${fmtInt(base.nb_contrats_mutuelle)} mutuelles`}
+              valueExtra={`Total perçu : ${fmtEURDecimal(base.total_frais_service)}`}
+            />
+            <RatioQualite
+              label="Multi-équipement"
+              realisePct={Number(base.ratio_multi_equip_realise) * 100}
+              ciblePct={(parametres?.ratio_multi_equip_cible ?? 0.2) * 100}
+              caption={`${fmtInt(base.nb_contrats_multi_equip)} / ${fmtInt(base.nb_contrats_mutuelle)} mutuelles`}
+            />
+          </>
+        )}
         <KpiCard
           label="Panier moyen"
           value={fmtEUR(base.panier_moyen_cotisation)}

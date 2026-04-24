@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  produitCountsFromKpis,
+  produitCountsFromOrigine,
   useMonthlyAllCommerciauxHook,
   useMonthlyFilteredEquipe,
 } from '../hooks/useMonthlyFiltered'
@@ -79,32 +81,75 @@ function EquipeContent({
     )
   }
 
-  const { base } = filtered
-  const origineActive = origine !== 'toutes'
+  const { base, origineData } = filtered
+  const origineActive = origine !== 'toutes' && origineData !== null
 
-  const nbLeads = origineActive ? filtered.nb_leads_filtre : Number(base.nb_leads_equipe_tous)
+  // KPIs filtrés lus directement depuis la vue DB (plus d'agrégation front).
+  const nbLeads = origineActive
+    ? Number(origineData.nb_leads_equipe)
+    : Number(base.nb_leads_equipe_tous)
   const nbSignes = origineActive
-    ? filtered.nb_signes_productifs_filtre
+    ? Number(origineData.nb_signes_productifs)
     : Number(base.nb_signes_productifs)
   const nbDecroches = origineActive
-    ? filtered.nb_decroches_productifs_filtre
+    ? Number(origineData.nb_decroches_productifs)
     : Number(base.nb_decroches_productifs)
+  const caProductifs = origineActive
+    ? Number(origineData.ca_acquisition_productifs)
+    : Number(base.ca_acquisition_productifs)
+
+  // Objectif CA : TOUJOURS sur leads Mapapp global (formule métier).
+  const objectifADate = Number(base.objectif_ca_a_date)
+  const pctObjectifADate = origineActive
+    ? objectifADate > 0
+      ? (caProductifs / objectifADate) * 100
+      : 0
+    : Number(base.pct_objectif_a_date)
 
   const tauxTransfoCible = Number(base.taux_transfo_mapapp_cible) * 100
   const tauxConversionCible = Number(base.taux_conversion_cible) * 100
   const tauxTransfo = origineActive
-    ? filtered.taux_transfo_filtre_pct
+    ? Number(origineData.taux_transfo_pct)
     : Number(base.taux_transfo_productifs_pct)
   const tauxConv = origineActive
-    ? filtered.taux_conversion_filtre_pct
+    ? Number(origineData.taux_conversion_pct)
     : Number(base.taux_conversion_productifs_pct)
 
-  const sourceSlices = Object.entries(filtered.source_counts).map(([k, v], i) => ({
-    label: SOURCE_LABELS[k] ?? k,
-    value: v,
-    color: colorForIndex(i),
-  }))
-  const produitSlices = Object.entries(filtered.produit_counts).map(([k, v], i) => ({
+  // Ventilation par source : toujours dérivée de la somme MonthlyKpis de tous
+  // les commerciaux productifs (footer) — le donut reflète la répartition sur
+  // le scope filtré (il y a une ligne par source). Pour un filtre single-source
+  // actif, c'est mono-tranche : pas utile, on masque les autres.
+  const sourceSlices = (() => {
+    if (origineActive) {
+      // Une seule source visible : montrer uniquement la tranche active
+      const active = origine
+      return [{
+        label: SOURCE_LABELS[active] ?? active,
+        value: nbSignes,
+        color: colorForIndex(0),
+      }]
+    }
+    const totals = parCommercialProductif.reduce(
+      (acc, r) => ({
+        mapapp: acc.mapapp + Number(r.nb_contrats_mapapp ?? 0),
+        site: acc.site + Number(r.nb_contrats_site ?? 0),
+        back_office: acc.back_office + Number(r.nb_contrats_bo ?? 0),
+        recommandation: acc.recommandation + Number(r.nb_contrats_reco ?? 0),
+        multi_equipement: acc.multi_equipement + Number(r.nb_contrats_multi_equip ?? 0),
+      }),
+      { mapapp: 0, site: 0, back_office: 0, recommandation: 0, multi_equipement: 0 },
+    )
+    return Object.entries(totals).map(([k, v], i) => ({
+      label: SOURCE_LABELS[k] ?? k,
+      value: v,
+      color: colorForIndex(i),
+    }))
+  })()
+
+  const produitCounts = origineActive
+    ? produitCountsFromOrigine(origineData)
+    : produitCountsFromKpis(parCommercialProductif)
+  const produitSlices = Object.entries(produitCounts).map(([k, v], i) => ({
     label: PRODUIT_LABELS[k] ?? k,
     value: v,
     color: colorForIndex(i),
@@ -113,12 +158,16 @@ function EquipeContent({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <ObjectifProgress
-        caRealise={Number(base.ca_acquisition_productifs)}
-        objectifADate={Number(base.objectif_ca_a_date)}
-        pctObjectifADate={Number(base.pct_objectif_a_date)}
+        caRealise={caProductifs}
+        objectifADate={objectifADate}
+        pctObjectifADate={pctObjectifADate}
         caProjete={Number(base.ca_projete_productifs)}
         objectifProjete={Number(base.objectif_ca_projete_fin_mois)}
-        hint={`Calculé sur ${fmtInt(base.nb_leads_equipe_mapapp)} leads Mapapp × ${fmtPct(Number(base.taux_transfo_mapapp_cible) * 100, 0)} × ${fmtEUR(base.panier_moyen_cible)} × coef ${base.coef_ambition}${origineActive ? ' — non filtré par origine' : ''}`}
+        hint={
+          origineActive
+            ? `Calculé sur ${fmtInt(base.nb_leads_equipe_mapapp)} leads Mapapp — non filtré par origine`
+            : `Calculé sur ${fmtInt(base.nb_leads_equipe_mapapp)} leads Mapapp × ${fmtPct(Number(base.taux_transfo_mapapp_cible) * 100, 0)} × ${fmtEUR(base.panier_moyen_cible)} × coef ${base.coef_ambition}`
+        }
       />
 
       <Section title="Volume & taux">
@@ -152,18 +201,56 @@ function EquipeContent({
       </Section>
 
       <Section title="Qualité">
-        <RatioQualite
-          label="Frais de service"
-          realisePct={Number(base.ratio_frais_service_realise) * 100}
-          ciblePct={Number(base.ratio_frais_service_cible) * 100}
-          caption={`${fmtInt(base.nb_frais_service_productifs)} / ${fmtInt(base.nb_mutuelles_productifs)} mutuelles`}
-        />
-        <RatioQualite
-          label="Multi-équipement"
-          realisePct={Number(base.ratio_multi_equip_realise) * 100}
-          ciblePct={Number(base.ratio_multi_equip_cible) * 100}
-          caption={`${fmtInt(base.nb_multi_equip_productifs)} / ${fmtInt(base.nb_mutuelles_productifs)} mutuelles`}
-        />
+        {origineActive ? (() => {
+          const nbFrais = Number(origineData.nb_frais_service)
+          const nbMut = Number(origineData.nb_signes_mutuelle)
+          const nbMultiEq = Number(
+            // pas de colonne dédiée dans par_origine → on retombe sur les KPIs
+            // agrégés par commercial, filtrés côté front uniquement sur la
+            // source principale.
+            parCommercialProductif.reduce(
+              (s, r) =>
+                s +
+                (origine === 'mapapp'
+                  ? Number(r.nb_contrats_multi_equip ?? 0)
+                  : origine === 'multi_equipement'
+                    ? Number(r.nb_contrats_multi_equip ?? 0)
+                    : 0),
+              0,
+            ),
+          )
+          return (
+            <>
+              <RatioQualite
+                label="Frais de service"
+                realisePct={nbMut > 0 ? (nbFrais / nbMut) * 100 : 0}
+                ciblePct={Number(base.ratio_frais_service_cible) * 100}
+                caption={`${fmtInt(nbFrais)} / ${fmtInt(nbMut)} mutuelles (${origine})`}
+              />
+              <RatioQualite
+                label="Multi-équipement"
+                realisePct={nbMut > 0 ? (nbMultiEq / nbMut) * 100 : 0}
+                ciblePct={Number(base.ratio_multi_equip_cible) * 100}
+                caption={`${fmtInt(nbMultiEq)} / ${fmtInt(nbMut)} mutuelles (${origine})`}
+              />
+            </>
+          )
+        })() : (
+          <>
+            <RatioQualite
+              label="Frais de service"
+              realisePct={Number(base.ratio_frais_service_realise) * 100}
+              ciblePct={Number(base.ratio_frais_service_cible) * 100}
+              caption={`${fmtInt(base.nb_frais_service_productifs)} / ${fmtInt(base.nb_mutuelles_productifs)} mutuelles`}
+            />
+            <RatioQualite
+              label="Multi-équipement"
+              realisePct={Number(base.ratio_multi_equip_realise) * 100}
+              ciblePct={Number(base.ratio_multi_equip_cible) * 100}
+              caption={`${fmtInt(base.nb_multi_equip_productifs)} / ${fmtInt(base.nb_mutuelles_productifs)} mutuelles`}
+            />
+          </>
+        )}
         <KpiCard
           label="Avis 5★"
           value="—"
