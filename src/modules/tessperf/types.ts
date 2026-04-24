@@ -383,6 +383,47 @@ export interface BarometreHebdoCommercial {
   ratio_multi_equip_cible: number
 }
 
+export interface DailyKpisEquipe {
+  jour: string
+  isodow: number
+  jour_nom: string
+  nb_leads_mapapp: number
+  nb_leads_tous: number
+  nb_decroches_productifs_mapapp: number
+  nb_signes_productifs: number
+  nb_signes_mapapp: number
+  nb_signes_multi_equip: number
+  nb_signes_reco: number
+  nb_signes_mutuelle: number
+  nb_frais_service: number
+  ca_acquisition_productifs: number
+  taux_transfo_pct: number
+  taux_conversion_pct: number
+  objectif_ca_jour: number
+  pct_objectif_jour: number
+}
+
+export interface DailyKpisCommercial {
+  jour: string
+  isodow: number
+  jour_nom: string
+  commercial_id: string
+  commercial_prenom: string
+  commercial_statut: string
+  nb_leads_mapapp: number
+  nb_decroches_mapapp: number
+  nb_signes_productifs: number
+  nb_signes_mapapp: number
+  nb_signes_multi_equip: number
+  nb_signes_mutuelle: number
+  nb_frais_service: number
+  ca_acquisition: number
+  taux_transfo_pct: number
+  taux_conversion_pct: number
+  objectif_ca_jour: number
+  pct_objectif_jour: number
+}
+
 export interface Constat {
   icon: string
   titre: string

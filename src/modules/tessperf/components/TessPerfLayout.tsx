@@ -12,7 +12,6 @@ import {
   monthInputFromAnneeMois,
   parseMonthInput,
 } from '../utils/format'
-import { SubNav } from './SubNav'
 import { OrigineFilter } from './OrigineFilter'
 import { CommercialSelector } from './CommercialSelector'
 
@@ -192,9 +191,9 @@ export default function TessPerfLayout({ section, scope, children }: Props) {
         />
       </div>
 
-      {/* Layout 2 colonnes : SubNav gauche + contenu */}
+      {/* Contenu principal. La navigation Mensuel/Hebdo/Baromètre vit
+          désormais dans la sidebar globale (plus de sous-nav interne). */}
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <SubNav />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Toolbar : sélecteur commercial + filtre origine */}
           <div

@@ -1,17 +1,12 @@
-import { useMemo, useState } from 'react'
-import { Modal } from '@/shared/ui'
-import { useWeeklyEquipe } from '../hooks/useWeeklyEquipe'
-import { useDailyDrilldown } from '../hooks/useDailyDrilldown'
+import { Fragment, useState } from 'react'
 import TessPerfLayout from '../components/TessPerfLayout'
-import { fmtEUR, fmtInt, fmtJourLong, fmtPct } from '../utils/format'
-import type { WeeklyEquipe as WeeklyRow } from '../types'
+import { useWeeklyEquipe } from '../hooks/useWeeklyEquipe'
+import { fetchDailyKpisEquipe } from '../api'
+import type { DailyKpisEquipe, WeeklyEquipe as WeeklyRow } from '../types'
+import { fmtEUR, fmtInt, fmtPct } from '../utils/format'
 
-export default function WeeklyEquipe() {
-  return (
-    <TessPerfLayout section="hebdomadaire" scope="equipe">
-      {({ annee, mois }) => <WeeklyContent annee={annee} mois={mois} />}
-    </TessPerfLayout>
-  )
+const JOURS_COURT: Record<number, string> = {
+  1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Jeu', 5: 'Ven', 6: 'Sam', 7: 'Dim',
 }
 
 function fmtWeekLabel(ws: string, wf: string): string {
@@ -22,16 +17,50 @@ function fmtWeekLabel(ws: string, wf: string): string {
   return `${d(ws)} → ${d(wf)}`
 }
 
-function feuFrom(realise: number, cible: number): { fg: string } {
-  const r = cible > 0 ? realise / cible : 0
-  if (r >= 0.85) return { fg: '#047857' }
-  if (r >= 0.5) return { fg: '#b45309' }
-  return { fg: '#b91c1c' }
+function fmtDayShort(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function pctColor(pct: number): string {
+  if (pct >= 90) return '#047857'
+  if (pct >= 70) return '#b45309'
+  if (pct > 0) return '#b91c1c'
+  return '#94a3b8'
+}
+
+export default function WeeklyEquipe() {
+  return (
+    <TessPerfLayout section="hebdomadaire" scope="equipe">
+      {({ annee, mois }) => <WeeklyContent annee={annee} mois={mois} />}
+    </TessPerfLayout>
+  )
 }
 
 function WeeklyContent({ annee, mois }: { annee: number; mois: number }) {
   const { data, loading, error } = useWeeklyEquipe(annee, mois)
-  const [selectedWeek, setSelectedWeek] = useState<WeeklyRow | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [daily, setDaily] = useState<Record<string, DailyKpisEquipe[]>>({})
+  const [loadingDay, setLoadingDay] = useState<string | null>(null)
+
+  async function toggle(w: WeeklyRow) {
+    if (expanded === w.semaine_debut) {
+      setExpanded(null)
+      return
+    }
+    setExpanded(w.semaine_debut)
+    if (!daily[w.semaine_debut]) {
+      setLoadingDay(w.semaine_debut)
+      try {
+        const d = await fetchDailyKpisEquipe(w.semaine_debut, w.semaine_fin)
+        setDaily((prev) => ({ ...prev, [w.semaine_debut]: d }))
+      } catch {
+        /* silent */
+      } finally {
+        setLoadingDay(null)
+      }
+    }
+  }
 
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
@@ -83,29 +112,88 @@ function WeeklyContent({ annee, mois }: { annee: number; mois: number }) {
               Number(w.objectif_ca) > 0
                 ? (Number(w.ca_acquisition_productifs) / Number(w.objectif_ca)) * 100
                 : 0
-            const { fg } = feuFrom(pct, 100)
+            const isOpen = expanded === w.semaine_debut
+            const days = daily[w.semaine_debut] ?? []
             return (
-              <tr
-                key={w.semaine_debut}
-                onClick={() => setSelectedWeek(w)}
-                style={{ borderTop: '1px solid #f1f5f9', cursor: 'pointer' }}
-              >
-                <td style={{ ...td, fontWeight: 500 }}>
-                  {fmtWeekLabel(w.semaine_debut, w.semaine_fin)}
-                </td>
-                <td style={tdNum}>{fmtInt(w.nb_leads_equipe_mapapp)}</td>
-                <td style={tdNum}>{fmtInt(w.nb_decroches_productifs)}</td>
-                <td style={tdNum}>{fmtInt(w.nb_signes_productifs)}</td>
-                <td style={tdNum}>{fmtPct(w.taux_transfo_pct)}</td>
-                <td style={tdNum}>{fmtPct(w.taux_conversion_pct)}</td>
-                <td style={{ ...tdNum, fontWeight: 700, color: '#0f172a' }}>
-                  {fmtEUR(w.ca_acquisition_productifs)}
-                </td>
-                <td style={{ ...tdNum, color: '#94a3b8' }}>{fmtEUR(w.objectif_ca)}</td>
-                <td style={{ ...tdNum, color: fg, fontWeight: 700 }}>
-                  {fmtPct(pct, 0)}
-                </td>
-              </tr>
+              <Fragment key={w.semaine_debut}>
+                <tr
+                  onClick={() => void toggle(w)}
+                  style={{
+                    borderTop: '1px solid #f1f5f9',
+                    cursor: 'pointer',
+                    background: isOpen ? '#f8fafc' : undefined,
+                  }}
+                >
+                  <td style={{ ...td, fontWeight: 500 }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        marginRight: 6,
+                        color: '#94a3b8',
+                        fontSize: 10,
+                        transform: isOpen ? 'rotate(90deg)' : 'rotate(0)',
+                        transition: 'transform .15s',
+                      }}
+                    >
+                      ▶
+                    </span>
+                    {fmtWeekLabel(w.semaine_debut, w.semaine_fin)}
+                  </td>
+                  <td style={tdNum}>{fmtInt(w.nb_leads_equipe_mapapp)}</td>
+                  <td style={tdNum}>{fmtInt(w.nb_decroches_productifs)}</td>
+                  <td style={tdNum}>{fmtInt(w.nb_signes_productifs)}</td>
+                  <td style={tdNum}>{fmtPct(w.taux_transfo_pct)}</td>
+                  <td style={tdNum}>{fmtPct(w.taux_conversion_pct)}</td>
+                  <td style={{ ...tdNum, fontWeight: 700, color: '#0f172a' }}>
+                    {fmtEUR(w.ca_acquisition_productifs)}
+                  </td>
+                  <td style={{ ...tdNum, color: '#94a3b8' }}>{fmtEUR(w.objectif_ca)}</td>
+                  <td style={{ ...tdNum, color: pctColor(pct), fontWeight: 700 }}>
+                    {fmtPct(pct, 0)}
+                  </td>
+                </tr>
+                {isOpen && (
+                  <>
+                    {loadingDay === w.semaine_debut && days.length === 0 && (
+                      <tr style={{ background: '#fafbfc' }}>
+                        <td colSpan={9} style={{ ...td, color: '#94a3b8', fontStyle: 'italic' }}>
+                          Chargement du détail journalier…
+                        </td>
+                      </tr>
+                    )}
+                    {days.map((d) => {
+                      const leadsOk = Number(d.nb_leads_mapapp) > 0
+                      const decOk = Number(d.nb_decroches_productifs_mapapp) > 0
+                      const dPct = Number(d.pct_objectif_jour)
+                      return (
+                        <tr key={d.jour} style={{ background: '#fafbfc' }}>
+                          <td style={{ ...td, paddingLeft: 32, fontSize: 12, color: '#475569' }}>
+                            {JOURS_COURT[d.isodow] ?? d.jour_nom} {fmtDayShort(d.jour)}
+                          </td>
+                          <td style={tdSubNum}>{fmtInt(d.nb_leads_mapapp)}</td>
+                          <td style={tdSubNum}>{fmtInt(d.nb_decroches_productifs_mapapp)}</td>
+                          <td style={tdSubNum}>{fmtInt(d.nb_signes_productifs)}</td>
+                          <td style={tdSubNum}>
+                            {leadsOk ? fmtPct(d.taux_transfo_pct) : '—'}
+                          </td>
+                          <td style={tdSubNum}>
+                            {decOk ? fmtPct(d.taux_conversion_pct) : '—'}
+                          </td>
+                          <td style={{ ...tdSubNum, color: '#0f172a', fontWeight: 600 }}>
+                            {fmtEUR(d.ca_acquisition_productifs)}
+                          </td>
+                          <td style={{ ...tdSubNum, color: '#94a3b8' }}>
+                            {Number(d.objectif_ca_jour) > 0 ? fmtEUR(d.objectif_ca_jour) : '—'}
+                          </td>
+                          <td style={{ ...tdSubNum, color: pctColor(dPct), fontWeight: 600 }}>
+                            {dPct > 0 ? fmtPct(dPct, 0) : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </>
+                )}
+              </Fragment>
             )
           })}
           <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 700 }}>
@@ -123,76 +211,6 @@ function WeeklyContent({ annee, mois }: { annee: number; mois: number }) {
           </tr>
         </tbody>
       </table>
-
-      <Modal
-        open={!!selectedWeek}
-        onClose={() => setSelectedWeek(null)}
-        title={selectedWeek ? `Semaine ${fmtWeekLabel(selectedWeek.semaine_debut, selectedWeek.semaine_fin)}` : ''}
-      >
-        {selectedWeek && <WeekDayDetail week={selectedWeek} />}
-      </Modal>
-    </div>
-  )
-}
-
-function WeekDayDetail({ week }: { week: WeeklyRow }) {
-  const { contrats, leads, loading, error } = useDailyDrilldown(
-    null,
-    week.semaine_debut,
-    week.semaine_fin,
-  )
-  const days = useMemo(() => {
-    const out: { jour: string; decroches: number; signes: number; ca: number }[] = []
-    const start = new Date(week.semaine_debut)
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(start)
-      d.setDate(start.getDate() + i)
-      const iso = d.toISOString().slice(0, 10)
-      const decroches = leads
-        .filter((l) => l.jour === iso)
-        .reduce((s, l) => s + Number(l.nb_decroches ?? 0), 0)
-      const signes = contrats
-        .filter((c) => c.jour === iso)
-        .reduce((s, c) => s + Number(c.nb_contrats ?? 0), 0)
-      const ca = contrats
-        .filter((c) => c.jour === iso)
-        .reduce((s, c) => s + Number(c.ca_acquisition_societe ?? 0), 0)
-      out.push({ jour: iso, decroches, signes, ca })
-    }
-    return out
-  }, [contrats, leads, week.semaine_debut])
-
-  if (loading) return <div style={{ color: '#64748b', padding: 12 }}>Chargement…</div>
-  if (error) return <div style={{ color: '#dc2626', padding: 12 }}>Erreur : {error}</div>
-
-  return (
-    <div style={{ fontSize: 13 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ color: '#94a3b8', fontSize: 11 }}>
-            <th style={{ ...subTh, textAlign: 'left' }}>Jour</th>
-            <th style={{ ...subTh, textAlign: 'right' }}>Décrochés</th>
-            <th style={{ ...subTh, textAlign: 'right' }}>Signés</th>
-            <th style={{ ...subTh, textAlign: 'right' }}>CA acquis.</th>
-          </tr>
-        </thead>
-        <tbody>
-          {days.map((d) => (
-            <tr key={d.jour} style={{ borderTop: '1px solid #f1f5f9' }}>
-              <td style={subTd}>{fmtJourLong(d.jour)}</td>
-              <td style={{ ...subTd, textAlign: 'right', fontFamily: MONO }}>
-                {d.decroches > 0 ? fmtInt(d.decroches) : '—'}
-              </td>
-              <td style={{ ...subTd, textAlign: 'right', fontFamily: MONO }}>
-                {d.signes > 0 ? fmtInt(d.signes) : '—'}
-              </td>
-              <td style={{ ...subTd, textAlign: 'right', fontFamily: MONO, color: '#0f172a', fontWeight: 600 }}>
-                {d.ca > 0 ? fmtEUR(d.ca) : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   )
 }
@@ -206,7 +224,6 @@ const td: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'middle' 
 const tdNum: React.CSSProperties = {
   ...td, textAlign: 'right', fontFamily: MONO, whiteSpace: 'nowrap',
 }
-const subTh: React.CSSProperties = {
-  padding: '6px 8px', borderBottom: '1px solid #e5e7eb',
+const tdSubNum: React.CSSProperties = {
+  ...tdNum, padding: '6px 12px', fontSize: 12, color: '#475569',
 }
-const subTd: React.CSSProperties = { padding: '8px' }

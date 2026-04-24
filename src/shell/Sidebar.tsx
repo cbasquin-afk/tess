@@ -81,6 +81,12 @@ const OUTILS_LINKS = [
   { path: '/simulateur', label: '🧮 Simulateur' },
 ] as const
 
+const TESSPERF_LINKS = [
+  { path: '/tessperf/mensuel', label: '📅 Mensuel' },
+  { path: '/tessperf/hebdomadaire', label: '📊 Hebdomadaire' },
+  { path: '/tessperf/barometre', label: '🌡️ Baromètre' },
+] as const
+
 // PerfLead, Admin et Finances ont une sous-navigation. Si d'autres
 // modules en gagnent une plus tard, on pourra mapper par path.
 function hasSublinks(m: ModuleConfig): boolean {
@@ -89,7 +95,8 @@ function hasSublinks(m: ModuleConfig): boolean {
     m.path === '/admin' ||
     m.path === '/finances' ||
     m.path === '/annuaire' ||
-    m.path === '/simulateur'
+    m.path === '/simulateur' ||
+    m.path === '/tessperf'
   )
 }
 
@@ -419,6 +426,37 @@ export function Sidebar() {
                   <div style={{ marginTop: 4, marginBottom: 6 }}>
                     {OUTILS_LINKS.map((sl) => {
                       const slActive = location.pathname === sl.path
+                      return (
+                        <Link
+                          key={sl.path}
+                          to={sl.path}
+                          style={{
+                            display: 'block',
+                            padding: '7px 12px 7px 20px',
+                            borderRadius: 5,
+                            color: slActive ? '#fff' : '#94a3b8',
+                            background: slActive ? '#1e293b' : 'transparent',
+                            textDecoration: 'none',
+                            fontSize: 12,
+                            fontWeight: slActive ? 600 : 400,
+                            marginBottom: 1,
+                          }}
+                        >
+                          {sl.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {isOpen && m.path === '/tessperf' && (
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    {TESSPERF_LINKS.map((sl) => {
+                      // Match en prefix car les routes réelles ont un suffixe
+                      // /equipe ou /commercial/:id (ex. /tessperf/mensuel/equipe).
+                      const slActive =
+                        location.pathname === sl.path ||
+                        location.pathname.startsWith(sl.path + '/')
                       return (
                         <Link
                           key={sl.path}
