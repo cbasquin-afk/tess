@@ -260,6 +260,158 @@ export interface MonthlyParOrigineCommercial {
 
 export type FeuTricolore = 'vert' | 'orange' | 'rouge' | 'neutre'
 
+// ── Baromètre ────────────────────────────────────────────────
+export interface BarometreMensuelEquipe {
+  annee: number
+  mois: number
+  mois_libelle: string
+  periode_debut: string
+  periode_fin: string
+  mois_passe: boolean
+  mois_en_cours: boolean
+  jours_ouvres_ecoules: number
+  jours_ouvres_total: number
+  nb_leads_equipe_mapapp: number
+  nb_signes_productifs: number
+  nb_signes_mapapp: number
+  ca_acquisition_productifs: number
+  ca_projete_productifs: number
+  objectif_ca_a_date: number
+  objectif_ca_projete_fin_mois: number
+  pct_objectif_a_date: number
+  taux_transfo_productifs_pct: number
+  taux_conversion_productifs_pct: number
+  ratio_frais_service_realise: number
+  ratio_multi_equip_realise: number
+  nb_retractations_productifs: number
+  nb_instances_productifs: number
+  nb_multi_equip_productifs: number
+  nb_mutuelles_productifs: number
+  nb_frais_service_productifs: number
+  taux_transfo_mapapp_cible: number
+  taux_conversion_cible: number
+  ratio_frais_service_cible: number
+  ratio_multi_equip_cible: number
+}
+
+export interface BarometreMensuelCommercial {
+  annee: number
+  mois: number
+  mois_libelle: string
+  periode_debut: string
+  periode_fin: string
+  commercial_id: string
+  commercial_prenom: string
+  commercial_statut: string
+  mois_passe: boolean
+  mois_en_cours: boolean
+  jours_ouvres_ecoules: number
+  jours_ouvres_total: number
+  nb_decroches: number
+  nb_contrats_signes: number
+  nb_contrats_mapapp: number
+  nb_contrats_reco: number
+  nb_contrats_multi_equip: number
+  nb_contrats_mutuelle: number
+  ca_acquisition: number
+  ca_projete_fin_mois: number
+  taux_conversion_pct: number
+  ratio_frais_service_realise: number
+  ratio_multi_equip_realise: number
+  nb_frais_service: number
+  nb_retractations: number
+  nb_instances_creees: number
+  panier_moyen_cotisation: number
+  ca_moyen_par_contrat: number
+  nb_leads_equipe_mapapp: number
+  objectif_ca_equipe: number
+  taux_conversion_cible: number
+  ratio_frais_service_cible: number
+  ratio_multi_equip_cible: number
+  panier_moyen_cible: number
+  panier_moyen_repere: number
+  ca_par_contrat_repere: number
+}
+
+export interface BarometreHebdoEquipe {
+  semaine_debut: string
+  semaine_fin: string
+  nb_leads_mapapp: number
+  nb_leads_tous: number
+  nb_decroches_productifs_mapapp: number
+  nb_signes_productifs: number
+  nb_signes_mapapp: number
+  nb_signes_multi_equip: number
+  nb_signes_reco: number
+  nb_signes_mutuelle: number
+  nb_frais_service: number
+  ca_acquisition_productifs: number
+  taux_transfo_pct: number
+  taux_conversion_pct: number
+  ratio_frais_service_realise: number
+  ratio_multi_equip_realise: number
+  nb_leads_mapapp_prec: number
+  ca_acquisition_prec: number
+  nb_signes_prec: number
+  delta_ca_pct: number
+  taux_transfo_mapapp_cible: number
+  taux_conversion_cible: number
+  ratio_frais_service_cible: number
+  ratio_multi_equip_cible: number
+}
+
+export interface BarometreHebdoCommercial {
+  semaine_debut: string
+  semaine_fin: string
+  commercial_id: string
+  commercial_prenom: string
+  nb_decroches_mapapp: number
+  nb_signes_productifs: number
+  nb_signes_mapapp: number
+  nb_signes_multi_equip: number
+  nb_signes_mutuelle: number
+  nb_frais_service: number
+  ca_acquisition: number
+  taux_conversion_pct: number
+  ratio_frais_service_realise: number
+  ratio_multi_equip_realise: number
+  ca_prec: number
+  nb_signes_prec: number
+  delta_ca_pct: number
+  taux_conversion_cible: number
+  ratio_frais_service_cible: number
+  ratio_multi_equip_cible: number
+}
+
+export interface Constat {
+  icon: string
+  titre: string
+  description: string
+  statut: 'vert' | 'orange' | 'rouge'
+  metric_name?: string
+  valeur?: number
+  cible?: number
+}
+
+export interface Suggestion {
+  icon: string
+  titre: string
+  description: string
+  impact_estime?: string
+}
+
+export interface BarometreData {
+  periode: 'mensuel' | 'hebdomadaire'
+  scope: 'equipe' | 'commercial'
+  commercial_prenom?: string
+  periode_libelle: string
+  points_forts: Constat[]
+  points_ameliorer: Constat[]
+  suggestions: Suggestion[]
+  // Tendance hebdo
+  tendance_ca?: { delta_pct: number; ca_prec: number }
+}
+
 // ── Origine : filtre UI unifié ────────────────────────────────
 export const ORIGINES = [
   'toutes',

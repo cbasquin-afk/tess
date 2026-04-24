@@ -1,5 +1,9 @@
 import { supabase } from '@/shared/supabase'
 import type {
+  BarometreHebdoCommercial,
+  BarometreHebdoEquipe,
+  BarometreMensuelCommercial,
+  BarometreMensuelEquipe,
   Commercial,
   ContratDetail,
   ContratsDaily,
@@ -250,4 +254,61 @@ export async function fetchContratsDetail(
     .order('date_signature', { ascending: false })
   if (error) throw new Error(`tessperf_v_contrats_detail: ${error.message}`)
   return (data ?? []) as ContratDetail[]
+}
+
+// ── Baromètre ────────────────────────────────────────────────
+export async function fetchBarometreMensuelEquipe(
+  annee: number,
+  mois: number,
+): Promise<BarometreMensuelEquipe | null> {
+  const { data, error } = await supabase
+    .from('tessperf_v_barometre_mensuel_equipe')
+    .select('*')
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .maybeSingle()
+  if (error) throw new Error(`tessperf_v_barometre_mensuel_equipe: ${error.message}`)
+  return (data as BarometreMensuelEquipe | null) ?? null
+}
+
+export async function fetchBarometreMensuelCommercial(
+  commercial_id: string,
+  annee: number,
+  mois: number,
+): Promise<BarometreMensuelCommercial | null> {
+  const { data, error } = await supabase
+    .from('tessperf_v_barometre_mensuel_commercial')
+    .select('*')
+    .eq('commercial_id', commercial_id)
+    .eq('annee', annee)
+    .eq('mois', mois)
+    .maybeSingle()
+  if (error)
+    throw new Error(`tessperf_v_barometre_mensuel_commercial: ${error.message}`)
+  return (data as BarometreMensuelCommercial | null) ?? null
+}
+
+// La vue hebdo équipe retourne automatiquement la bonne semaine selon la
+// logique f_barometre_semaine_courante (mardi→vendredi = semaine en cours,
+// samedi→lundi = semaine précédente figée). Pas de paramètre à passer.
+export async function fetchBarometreHebdoEquipe(): Promise<BarometreHebdoEquipe | null> {
+  const { data, error } = await supabase
+    .from('tessperf_v_barometre_hebdo_equipe')
+    .select('*')
+    .maybeSingle()
+  if (error) throw new Error(`tessperf_v_barometre_hebdo_equipe: ${error.message}`)
+  return (data as BarometreHebdoEquipe | null) ?? null
+}
+
+export async function fetchBarometreHebdoCommercial(
+  commercial_id: string,
+): Promise<BarometreHebdoCommercial | null> {
+  const { data, error } = await supabase
+    .from('tessperf_v_barometre_hebdo_commercial')
+    .select('*')
+    .eq('commercial_id', commercial_id)
+    .maybeSingle()
+  if (error)
+    throw new Error(`tessperf_v_barometre_hebdo_commercial: ${error.message}`)
+  return (data as BarometreHebdoCommercial | null) ?? null
 }

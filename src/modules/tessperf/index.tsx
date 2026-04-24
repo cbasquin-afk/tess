@@ -6,6 +6,12 @@ const DashboardEquipe = lazyWithRetry(() => import('./views/DashboardEquipe'))
 const DashboardCommercial = lazyWithRetry(() => import('./views/DashboardCommercial'))
 const WeeklyEquipe = lazyWithRetry(() => import('./views/WeeklyEquipe'))
 const WeeklyCommercial = lazyWithRetry(() => import('./views/WeeklyCommercial'))
+const BarometreEquipe = lazyWithRetry(() =>
+  import('./views/Barometre').then((m) => ({ default: m.BarometreEquipe })),
+)
+const BarometreCommercial = lazyWithRetry(() =>
+  import('./views/Barometre').then((m) => ({ default: m.BarometreCommercial })),
+)
 
 /**
  * Garde-fou anti-boucle : si l'URL accumule plus de 4 segments sous /tessperf
@@ -45,12 +51,15 @@ function TessPerfModule() {
               sinon l'URL empile les segments quand on est déjà profond). */}
           <Route path="mensuel" element={<Navigate to="/tessperf/mensuel/equipe" replace />} />
           <Route path="hebdomadaire" element={<Navigate to="/tessperf/hebdomadaire/equipe" replace />} />
+          <Route path="barometre" element={<Navigate to="/tessperf/barometre/equipe" replace />} />
 
           {/* Routes fonctionnelles */}
           <Route path="mensuel/equipe" element={<DashboardEquipe />} />
           <Route path="mensuel/commercial/:id" element={<DashboardCommercial />} />
           <Route path="hebdomadaire/equipe" element={<WeeklyEquipe />} />
           <Route path="hebdomadaire/commercial/:id" element={<WeeklyCommercial />} />
+          <Route path="barometre/equipe" element={<BarometreEquipe />} />
+          <Route path="barometre/commercial/:id" element={<BarometreCommercial />} />
 
           {/* Legacy v1 : ancienne route plate */}
           <Route path="commercial/:id" element={<Navigate to="/tessperf/mensuel/equipe" replace />} />
