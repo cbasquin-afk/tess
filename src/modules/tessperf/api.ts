@@ -7,6 +7,8 @@ import type {
   Commercial,
   ContratDetail,
   ContratsDaily,
+  DailyKpisCommercial,
+  DailyKpisEquipe,
   LeadsDaily,
   MonthlyEquipe,
   MonthlyKpis,
@@ -311,4 +313,36 @@ export async function fetchBarometreHebdoCommercial(
   if (error)
     throw new Error(`tessperf_v_barometre_hebdo_commercial: ${error.message}`)
   return (data as BarometreHebdoCommercial | null) ?? null
+}
+
+// ── Drill-down journalier ────────────────────────────────────
+export async function fetchDailyKpisEquipe(
+  semaine_debut: string,
+  semaine_fin: string,
+): Promise<DailyKpisEquipe[]> {
+  const { data, error } = await supabase
+    .from('tessperf_v_daily_kpis_equipe')
+    .select('*')
+    .gte('jour', semaine_debut)
+    .lte('jour', semaine_fin)
+    .order('jour', { ascending: true })
+  if (error) throw new Error(`tessperf_v_daily_kpis_equipe: ${error.message}`)
+  return (data ?? []) as DailyKpisEquipe[]
+}
+
+export async function fetchDailyKpisCommercial(
+  commercial_id: string,
+  semaine_debut: string,
+  semaine_fin: string,
+): Promise<DailyKpisCommercial[]> {
+  const { data, error } = await supabase
+    .from('tessperf_v_daily_kpis_commercial')
+    .select('*')
+    .eq('commercial_id', commercial_id)
+    .gte('jour', semaine_debut)
+    .lte('jour', semaine_fin)
+    .order('jour', { ascending: true })
+  if (error)
+    throw new Error(`tessperf_v_daily_kpis_commercial: ${error.message}`)
+  return (data ?? []) as DailyKpisCommercial[]
 }
