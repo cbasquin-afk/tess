@@ -1,8 +1,18 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import TessPerfLayout from '../components/TessPerfLayout'
 import { useWeeklyDataCommercial } from '../hooks/useWeeklyData'
-import { fetchDailyKpisCommercial } from '../api'
-import type { DailyKpisCommercial, WeeklyKpis } from '../types'
+import {
+  fetchDailyKpisCommercial,
+  fetchDailyParOrigineCommercial,
+  fetchWeeklyParOrigineCommercial,
+} from '../api'
+import type {
+  DailyKpisCommercial,
+  DailyParOrigineCommercial,
+  Origine,
+  WeeklyKpis,
+  WeeklyParOrigineCommercial,
+} from '../types'
 import { fmtEUR, fmtInt, fmtPct } from '../utils/format'
 
 const JOURS_COURT: Record<number, string> = {
@@ -30,12 +40,96 @@ function fmtDayShort(iso: string): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+/** Shape commune pour les lignes semaine (filtré ou non). */
+interface WeekLine {
+  semaine_debut: string
+  semaine_fin: string
+  nb_decroches: number
+  nb_signes: number
+  taux_conversion_pct: number
+  ca: number
+  nb_mutuelles: number
+  nb_multi_equip: number
+  nb_frais_service: number
+}
+
+interface DayLine {
+  jour: string
+  isodow: number
+  nb_decroches: number
+  nb_signes: number
+  taux_conversion_pct: number
+  ca: number
+  // Sous-colonnes affichées uniquement quand filtre inactif
+  nb_signes_mutuelle?: number
+  nb_signes_multi_equip?: number
+  nb_frais_service?: number
+}
+
+function toWeekLineNonFiltered(w: WeeklyKpis): WeekLine {
+  return {
+    semaine_debut: w.semaine_debut,
+    semaine_fin: w.semaine_fin,
+    nb_decroches: Number(w.nb_decroches),
+    nb_signes: Number(w.nb_contrats_signes),
+    taux_conversion_pct: Number(w.taux_conversion_pct),
+    ca: Number(w.ca_acquisition),
+    nb_mutuelles: Number(w.nb_mutuelles),
+    nb_multi_equip: Number(w.nb_multi_equip),
+    nb_frais_service: Number(w.nb_frais_service),
+  }
+}
+
+function toWeekLineFiltered(w: WeeklyParOrigineCommercial): WeekLine {
+  return {
+    semaine_debut: w.semaine_debut,
+    semaine_fin: w.semaine_fin,
+    nb_decroches: Number(w.nb_decroches),
+    nb_signes: Number(w.nb_contrats_signes),
+    taux_conversion_pct: Number(w.taux_conversion_pct),
+    ca: Number(w.ca_acquisition),
+    nb_mutuelles: Number(w.nb_contrats_mutuelle),
+    nb_multi_equip: 0, // pas de ventilation produit dans la vue par_origine_commercial
+    nb_frais_service: Number(w.nb_frais_service),
+  }
+}
+
+function toDayLineNonFiltered(d: DailyKpisCommercial): DayLine {
+  return {
+    jour: d.jour,
+    isodow: Number(d.isodow),
+    nb_decroches: Number(d.nb_decroches_mapapp),
+    nb_signes: Number(d.nb_signes_productifs),
+    taux_conversion_pct: Number(d.taux_conversion_pct),
+    ca: Number(d.ca_acquisition),
+    nb_signes_mutuelle: Number(d.nb_signes_mutuelle),
+    nb_signes_multi_equip: Number(d.nb_signes_multi_equip),
+    nb_frais_service: Number(d.nb_frais_service),
+  }
+}
+
+function toDayLineFiltered(d: DailyParOrigineCommercial): DayLine {
+  return {
+    jour: d.jour,
+    isodow: Number(d.isodow),
+    nb_decroches: Number(d.nb_decroches),
+    nb_signes: Number(d.nb_signes),
+    taux_conversion_pct: Number(d.taux_conversion_pct),
+    ca: Number(d.ca_acquisition),
+  }
+}
+
 export default function WeeklyCommercial() {
   return (
     <TessPerfLayout section="hebdomadaire" scope="commercial">
-      {({ annee, mois, activeCommercialId }) =>
+      {({ annee, mois, origine, activeCommercialId }) =>
         activeCommercialId ? (
-          <WeeklyContent id={activeCommercialId} annee={annee} mois={mois} />
+          <WeeklyContent
+            id={activeCommercialId}
+            annee={annee}
+            mois={mois}
+            origine={origine}
+          />
         ) : null
       }
     </TessPerfLayout>
@@ -46,34 +140,80 @@ function WeeklyContent({
   id,
   annee,
   mois,
+  origine,
 }: {
   id: string
   annee: number
   mois: number
+  origine: Origine
 }) {
   const { debut, fin } = useMemo(() => monthRange(annee, mois), [annee, mois])
-  const { data, loading, error } = useWeeklyDataCommercial(id, debut, fin)
+  const origineActive = origine !== 'toutes'
+  const {
+    data: baseRows,
+    loading: loadingBase,
+    error: errorBase,
+  } = useWeeklyDataCommercial(id, debut, fin)
+
+  const [filteredRows, setFilteredRows] = useState<WeeklyParOrigineCommercial[] | null>(null)
+  const [loadingFiltered, setLoadingFiltered] = useState(false)
+  const [errorFiltered, setErrorFiltered] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!origineActive) {
+      setFilteredRows(null)
+      return
+    }
+    let cancelled = false
+    setLoadingFiltered(true)
+    setErrorFiltered(null)
+    fetchWeeklyParOrigineCommercial(id, annee, mois, origine)
+      .then((d) => { if (!cancelled) setFilteredRows(d ?? []) })
+      .catch((e: unknown) => {
+        if (!cancelled) setErrorFiltered(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => { if (!cancelled) setLoadingFiltered(false) })
+    return () => { cancelled = true }
+  }, [id, annee, mois, origine, origineActive])
+
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [daily, setDaily] = useState<Record<string, DailyKpisCommercial[]>>({})
+  const [daily, setDaily] = useState<Record<string, DayLine[]>>({})
   const [loadingDay, setLoadingDay] = useState<string | null>(null)
 
-  // Reset l'état de drill-down quand on change de commercial (scope).
+  // Reset l'état de drill-down quand on change de commercial ou d'origine.
   useEffect(() => {
     setExpanded(null)
     setDaily({})
-  }, [id])
+  }, [id, origine])
 
-  async function toggle(w: WeeklyKpis) {
-    if (expanded === w.semaine_debut) {
+  const lines: WeekLine[] = useMemo(() => {
+    if (origineActive) return (filteredRows ?? []).map(toWeekLineFiltered)
+    return baseRows.map(toWeekLineNonFiltered)
+  }, [origineActive, filteredRows, baseRows])
+
+  async function toggle(line: WeekLine) {
+    if (expanded === line.semaine_debut) {
       setExpanded(null)
       return
     }
-    setExpanded(w.semaine_debut)
-    if (!daily[w.semaine_debut]) {
-      setLoadingDay(w.semaine_debut)
+    setExpanded(line.semaine_debut)
+    if (!daily[line.semaine_debut]) {
+      setLoadingDay(line.semaine_debut)
       try {
-        const d = await fetchDailyKpisCommercial(id, w.semaine_debut, w.semaine_fin)
-        setDaily((prev) => ({ ...prev, [w.semaine_debut]: d }))
+        let mapped: DayLine[]
+        if (origineActive) {
+          const d = await fetchDailyParOrigineCommercial(
+            id,
+            line.semaine_debut,
+            line.semaine_fin,
+            origine,
+          )
+          mapped = (d ?? []).map(toDayLineFiltered)
+        } else {
+          const d = await fetchDailyKpisCommercial(id, line.semaine_debut, line.semaine_fin)
+          mapped = d.map(toDayLineNonFiltered)
+        }
+        setDaily((prev) => ({ ...prev, [line.semaine_debut]: mapped }))
       } catch {
         /* silent */
       } finally {
@@ -82,24 +222,29 @@ function WeeklyContent({
     }
   }
 
+  const loading = origineActive ? loadingFiltered : loadingBase
+  const error = origineActive ? errorFiltered : errorBase
+
   if (loading) return <div style={{ color: '#64748b' }}>Chargement…</div>
   if (error) return <div style={{ color: '#dc2626' }}>Erreur : {error}</div>
-  if (data.length === 0) {
+  if (lines.length === 0) {
     return (
       <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: 32, textAlign: 'center' }}>
-        Pas de semaines sur ce mois.
+        {origineActive
+          ? `Aucune donnée pour l'origine « ${origine} » sur ce mois.`
+          : 'Pas de semaines sur ce mois.'}
       </div>
     )
   }
 
-  const totals = data.reduce(
+  const totals = lines.reduce(
     (t, w) => ({
-      dec: t.dec + Number(w.nb_decroches),
-      sig: t.sig + Number(w.nb_contrats_signes),
-      ca: t.ca + Number(w.ca_acquisition),
-      mut: t.mut + Number(w.nb_mutuelles),
-      me: t.me + Number(w.nb_multi_equip),
-      fr: t.fr + Number(w.nb_frais_service),
+      dec: t.dec + w.nb_decroches,
+      sig: t.sig + w.nb_signes,
+      ca: t.ca + w.ca,
+      mut: t.mut + w.nb_mutuelles,
+      me: t.me + w.nb_multi_equip,
+      fr: t.fr + w.nb_frais_service,
     }),
     { dec: 0, sig: 0, ca: 0, mut: 0, me: 0, fr: 0 },
   )
@@ -122,12 +267,12 @@ function WeeklyContent({
             <th style={thR}>Tx conv</th>
             <th style={thR}>CA</th>
             <th style={thR}>Mutuelles</th>
-            <th style={thR}>Multi-éq</th>
+            {!origineActive && <th style={thR}>Multi-éq</th>}
             <th style={thR}>Frais serv.</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((w) => {
+          {lines.map((w) => {
             const isOpen = expanded === w.semaine_debut
             const days = daily[w.semaine_debut] ?? []
             return (
@@ -156,45 +301,52 @@ function WeeklyContent({
                     {fmtWeekLabel(w.semaine_debut, w.semaine_fin)}
                   </td>
                   <td style={tdNum}>{fmtInt(w.nb_decroches)}</td>
-                  <td style={tdNum}>{fmtInt(w.nb_contrats_signes)}</td>
-                  <td style={tdNum}>{fmtPct(w.taux_conversion_pct)}</td>
+                  <td style={tdNum}>{fmtInt(w.nb_signes)}</td>
+                  <td style={tdNum}>
+                    {w.nb_decroches > 0 ? fmtPct(w.taux_conversion_pct) : '—'}
+                  </td>
                   <td style={{ ...tdNum, fontWeight: 700, color: '#0f172a' }}>
-                    {fmtEUR(w.ca_acquisition)}
+                    {fmtEUR(w.ca)}
                   </td>
                   <td style={tdNum}>{fmtInt(w.nb_mutuelles)}</td>
-                  <td style={tdNum}>{fmtInt(w.nb_multi_equip)}</td>
+                  {!origineActive && <td style={tdNum}>{fmtInt(w.nb_multi_equip)}</td>}
                   <td style={tdNum}>{fmtInt(w.nb_frais_service)}</td>
                 </tr>
                 {isOpen && (
                   <>
                     {loadingDay === w.semaine_debut && days.length === 0 && (
                       <tr style={{ background: '#fafbfc' }}>
-                        <td colSpan={8} style={{ ...td, color: '#94a3b8', fontStyle: 'italic' }}>
+                        <td colSpan={origineActive ? 7 : 8} style={{ ...td, color: '#94a3b8', fontStyle: 'italic' }}>
                           Chargement du détail journalier…
                         </td>
                       </tr>
                     )}
-                    {days.map((d) => {
-                      const decOk = Number(d.nb_decroches_mapapp) > 0
-                      return (
-                        <tr key={d.jour} style={{ background: '#fafbfc' }}>
-                          <td style={{ ...td, paddingLeft: 32, fontSize: 12, color: '#475569' }}>
-                            {JOURS_COURT[d.isodow] ?? d.jour_nom} {fmtDayShort(d.jour)}
-                          </td>
-                          <td style={tdSubNum}>{fmtInt(d.nb_decroches_mapapp)}</td>
-                          <td style={tdSubNum}>{fmtInt(d.nb_signes_productifs)}</td>
+                    {days.map((d) => (
+                      <tr key={d.jour} style={{ background: '#fafbfc' }}>
+                        <td style={{ ...td, paddingLeft: 32, fontSize: 12, color: '#475569' }}>
+                          {JOURS_COURT[d.isodow] ?? ''} {fmtDayShort(d.jour)}
+                        </td>
+                        <td style={tdSubNum}>{fmtInt(d.nb_decroches)}</td>
+                        <td style={tdSubNum}>{fmtInt(d.nb_signes)}</td>
+                        <td style={tdSubNum}>
+                          {d.nb_decroches > 0 ? fmtPct(d.taux_conversion_pct) : '—'}
+                        </td>
+                        <td style={{ ...tdSubNum, color: '#0f172a', fontWeight: 600 }}>
+                          {fmtEUR(d.ca)}
+                        </td>
+                        <td style={tdSubNum}>
+                          {d.nb_signes_mutuelle != null ? fmtInt(d.nb_signes_mutuelle) : '—'}
+                        </td>
+                        {!origineActive && (
                           <td style={tdSubNum}>
-                            {decOk ? fmtPct(d.taux_conversion_pct) : '—'}
+                            {d.nb_signes_multi_equip != null ? fmtInt(d.nb_signes_multi_equip) : '—'}
                           </td>
-                          <td style={{ ...tdSubNum, color: '#0f172a', fontWeight: 600 }}>
-                            {fmtEUR(d.ca_acquisition)}
-                          </td>
-                          <td style={tdSubNum}>{fmtInt(d.nb_signes_mutuelle)}</td>
-                          <td style={tdSubNum}>{fmtInt(d.nb_signes_multi_equip)}</td>
-                          <td style={tdSubNum}>{fmtInt(d.nb_frais_service)}</td>
-                        </tr>
-                      )
-                    })}
+                        )}
+                        <td style={tdSubNum}>
+                          {d.nb_frais_service != null ? fmtInt(d.nb_frais_service) : '—'}
+                        </td>
+                      </tr>
+                    ))}
                   </>
                 )}
               </Fragment>
@@ -207,7 +359,7 @@ function WeeklyContent({
             <td style={{ ...tdNum, color: '#94a3b8' }}>—</td>
             <td style={{ ...tdNum, color: '#0f172a' }}>{fmtEUR(totals.ca)}</td>
             <td style={tdNum}>{fmtInt(totals.mut)}</td>
-            <td style={tdNum}>{fmtInt(totals.me)}</td>
+            {!origineActive && <td style={tdNum}>{fmtInt(totals.me)}</td>}
             <td style={tdNum}>{fmtInt(totals.fr)}</td>
           </tr>
         </tbody>
