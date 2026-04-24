@@ -403,6 +403,66 @@ export interface DailyKpisEquipe {
   pct_objectif_jour: number
 }
 
+// ── Hebdo × origine ──────────────────────────────────────────
+export interface WeeklyParOrigine {
+  semaine_debut: string
+  semaine_fin: string
+  origine: string
+  nb_leads_equipe: number
+  nb_decroches_equipe: number
+  nb_decroches_productifs: number
+  nb_signes_productifs: number
+  nb_signes_mutuelle: number
+  nb_frais_service: number
+  cotisation_totale: number
+  ca_acquisition_productifs: number
+  taux_transfo_pct: number
+  taux_conversion_pct: number
+}
+
+export interface WeeklyParOrigineCommercial {
+  semaine_debut: string
+  semaine_fin: string
+  commercial_id: string
+  commercial_prenom: string
+  commercial_statut: string
+  origine: string
+  nb_decroches: number
+  nb_contrats_signes: number
+  nb_contrats_mutuelle: number
+  nb_frais_service: number
+  cotisation_totale: number
+  ca_acquisition: number
+  taux_conversion_pct: number
+}
+
+export interface DailyParOrigineEquipe {
+  jour: string
+  isodow: number
+  origine: string
+  nb_leads_equipe: number
+  nb_decroches_productifs: number
+  nb_signes_productifs: number
+  ca_acquisition_productifs: number
+  taux_transfo_pct: number
+  taux_conversion_pct: number
+}
+
+export interface DailyParOrigineCommercial {
+  jour: string
+  isodow: number
+  commercial_id: string
+  commercial_prenom: string
+  commercial_statut: string
+  origine: string
+  nb_leads: number
+  nb_decroches: number
+  nb_signes: number
+  ca_acquisition: number
+  taux_transfo_pct: number
+  taux_conversion_pct: number
+}
+
 export interface DailyKpisCommercial {
   jour: string
   isodow: number

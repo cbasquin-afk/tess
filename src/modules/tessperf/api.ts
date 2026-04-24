@@ -9,6 +9,8 @@ import type {
   ContratsDaily,
   DailyKpisCommercial,
   DailyKpisEquipe,
+  DailyParOrigineCommercial,
+  DailyParOrigineEquipe,
   LeadsDaily,
   MonthlyEquipe,
   MonthlyKpis,
@@ -17,6 +19,8 @@ import type {
   PerfParametres,
   WeeklyEquipe,
   WeeklyKpis,
+  WeeklyParOrigine,
+  WeeklyParOrigineCommercial,
 } from './types'
 
 function last2(n: number): string {
@@ -345,4 +349,84 @@ export async function fetchDailyKpisCommercial(
   if (error)
     throw new Error(`tessperf_v_daily_kpis_commercial: ${error.message}`)
   return (data ?? []) as DailyKpisCommercial[]
+}
+
+// ── Hebdo × origine ──────────────────────────────────────────
+// Retournent null si origine='toutes' → l'appelant doit utiliser
+// la vue non filtrée correspondante.
+export async function fetchWeeklyParOrigine(
+  annee: number,
+  mois: number,
+  origine: string,
+): Promise<WeeklyParOrigine[] | null> {
+  if (origine === 'toutes') return null
+  const { debut, fin } = monthBounds(annee, mois)
+  const { data, error } = await supabase
+    .from('tessperf_v_weekly_par_origine')
+    .select('*')
+    .eq('origine', origine)
+    .gte('semaine_debut', debut)
+    .lte('semaine_debut', fin)
+    .order('semaine_debut', { ascending: true })
+  if (error) throw new Error(`tessperf_v_weekly_par_origine: ${error.message}`)
+  return (data ?? []) as WeeklyParOrigine[]
+}
+
+export async function fetchWeeklyParOrigineCommercial(
+  commercial_id: string,
+  annee: number,
+  mois: number,
+  origine: string,
+): Promise<WeeklyParOrigineCommercial[] | null> {
+  if (origine === 'toutes') return null
+  const { debut, fin } = monthBounds(annee, mois)
+  const { data, error } = await supabase
+    .from('tessperf_v_weekly_par_origine_commercial')
+    .select('*')
+    .eq('commercial_id', commercial_id)
+    .eq('origine', origine)
+    .gte('semaine_debut', debut)
+    .lte('semaine_debut', fin)
+    .order('semaine_debut', { ascending: true })
+  if (error)
+    throw new Error(`tessperf_v_weekly_par_origine_commercial: ${error.message}`)
+  return (data ?? []) as WeeklyParOrigineCommercial[]
+}
+
+export async function fetchDailyParOrigineEquipe(
+  semaine_debut: string,
+  semaine_fin: string,
+  origine: string,
+): Promise<DailyParOrigineEquipe[] | null> {
+  if (origine === 'toutes') return null
+  const { data, error } = await supabase
+    .from('tessperf_v_daily_par_origine_equipe')
+    .select('*')
+    .eq('origine', origine)
+    .gte('jour', semaine_debut)
+    .lte('jour', semaine_fin)
+    .order('jour', { ascending: true })
+  if (error)
+    throw new Error(`tessperf_v_daily_par_origine_equipe: ${error.message}`)
+  return (data ?? []) as DailyParOrigineEquipe[]
+}
+
+export async function fetchDailyParOrigineCommercial(
+  commercial_id: string,
+  semaine_debut: string,
+  semaine_fin: string,
+  origine: string,
+): Promise<DailyParOrigineCommercial[] | null> {
+  if (origine === 'toutes') return null
+  const { data, error } = await supabase
+    .from('tessperf_v_daily_par_origine_commercial')
+    .select('*')
+    .eq('commercial_id', commercial_id)
+    .eq('origine', origine)
+    .gte('jour', semaine_debut)
+    .lte('jour', semaine_fin)
+    .order('jour', { ascending: true })
+  if (error)
+    throw new Error(`tessperf_v_daily_par_origine_commercial: ${error.message}`)
+  return (data ?? []) as DailyParOrigineCommercial[]
 }
