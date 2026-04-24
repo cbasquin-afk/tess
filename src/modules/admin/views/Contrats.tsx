@@ -19,6 +19,7 @@ import {
 } from '../api'
 import type { TadminCommission, TadminContrat } from '../types'
 import { ClientCell } from '../components/ClientCell'
+import { EditableField } from '../components/EditableField'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
@@ -744,6 +745,9 @@ function Contrats() {
         <PanelDetail
           contrat={panelTarget}
           onClose={() => setPanelTarget(null)}
+          onReload={() => {
+            void reload()
+          }}
         />
       )}
     </div>
@@ -1127,10 +1131,13 @@ function ModalDelete({ target, onClose, onSuccess }: ModalDeleteProps) {
 interface PanelDetailProps {
   contrat: TadminContrat
   onClose: () => void
+  onReload: () => void
 }
 
-function PanelDetail({ contrat, onClose }: PanelDetailProps) {
+function PanelDetail({ contrat, onClose, onReload }: PanelDetailProps) {
   const [commissions, setCommissions] = useState<TadminCommission[]>([])
+  const [reloadKey, setReloadKey] = useState(0)
+  const [toast, setToast] = useState<string | null>(null)
   const [loadingCom, setLoadingCom] = useState(true)
   const [errCom, setErrCom] = useState<string | null>(null)
 
@@ -1152,7 +1159,24 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
     return () => {
       cancelled = true
     }
-  }, [contrat.id])
+  }, [contrat.id, reloadKey])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  async function handleFieldSave(field: 'cotisation_mensuelle' | 'frais_service', v: number | null) {
+    await updateField(contrat.id, field, v === null ? null : String(v))
+    setReloadKey((k) => k + 1) // refresh des commissions dans le panel
+    onReload() // refresh de la liste côté parent
+    setToast(
+      field === 'cotisation_mensuelle'
+        ? 'Cotisation mise à jour. Commissions recalculées.'
+        : 'Frais de service mis à jour. Commissions recalculées.',
+    )
+  }
 
   const totalCom = useMemo(
     () =>
@@ -1242,10 +1266,24 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
           <DetailItem label="Type contrat" value={contrat.type_contrat} />
           <DetailItem
             label="Cotisation"
-            value={
-              contrat.cotisation_mensuelle
-                ? `${fmtEur(contrat.cotisation_mensuelle)} /mois`
-                : null
+            valueNode={
+              <EditableField
+                value={contrat.cotisation_mensuelle ?? null}
+                onSave={(v) => handleFieldSave('cotisation_mensuelle', v)}
+                step={0.01}
+                suffix="€/mois"
+                format={(v) =>
+                  v != null ? `${fmtEur(v)} /mois` : '—'
+                }
+                confirmMessage="Modifier la cotisation va recalculer toutes les commissions du contrat. Les anciennes valeurs ne seront pas conservées. Continuer ?"
+                quickActions={[
+                  {
+                    label: '−8 %',
+                    title: 'Remise multi-équipement ASAF',
+                    apply: (c) => Math.round(c * 0.92 * 100) / 100,
+                  },
+                ]}
+              />
             }
           />
           <DetailItem
@@ -1288,7 +1326,16 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
           <DetailItem label="Origine" value={contrat.origine} />
           <DetailItem
             label="Frais de service"
-            value={contrat.frais_service ? fmtEur(contrat.frais_service) : null}
+            valueNode={
+              <EditableField
+                value={contrat.frais_service ?? null}
+                onSave={(v) => handleFieldSave('frais_service', v)}
+                step={0.01}
+                suffix="€"
+                format={(v) => (v != null ? fmtEur(v) : '—')}
+                confirmMessage="Modifier les frais de service va recalculer toutes les commissions du contrat. Continuer ?"
+              />
+            }
           />
           <DetailItem
             label="Com. totale prévue"
@@ -1434,6 +1481,25 @@ function PanelDetail({ contrat, onClose }: PanelDetailProps) {
           )}
         </div>
       </div>
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            padding: '10px 16px',
+            background: '#1D9E75',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 500,
+            borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1100,
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </>
   )
 }
