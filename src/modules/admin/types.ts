@@ -139,3 +139,57 @@ export interface TadminCommission {
   montant_frais: number | null
   type_ligne: string | null
 }
+
+// ── Vue tadmin_v_contrats_resiliations ───────────────────────
+export type ResiliationEtape =
+  | 'aucune'
+  | 'a_planifier'
+  | 'envoyee_attente_ar'
+  | 'ar_recu'
+  | 'refusee'
+
+export type ResiliationCategorie = 'a_traiter' | 'finalise'
+
+export interface ContratResiliation {
+  contrat_id: string
+  client: string
+  compagnie_assureur: string | null
+  type_contrat: string | null
+  origine: string | null
+  workflow_statut: string
+  statut_compagnie: string | null
+  cotisation_mensuelle: number | null
+  date_signature: string | null
+  date_effet: string | null
+  date_transmission: string | null
+  commercial_id: string | null
+  commercial_prenom: string | null
+  contrat_notes: string | null
+
+  resiliation_id: string | null
+  type_resiliation: string | null
+  resiliation_envoyee: boolean | null
+  resiliation_statut: string | null
+  resiliation_date_envoi: string | null
+  resiliation_date_ar: string | null
+  resiliation_date_effet: string | null
+  resiliation_url_depot: string | null
+  resiliation_url_ar: string | null
+  gmail_depot_id: string | null
+  gmail_ar_id: string | null
+  resiliation_commentaire: string | null
+
+  resiliation_etape: ResiliationEtape
+  resiliation_attendue: boolean
+}
+
+export const RESILIATION_ETAPE_LABELS: Record<
+  ResiliationEtape,
+  { label: string; categorie: ResiliationCategorie; bg: string; fg: string }
+> = {
+  aucune: { label: 'Aucune', categorie: 'a_traiter', bg: '#fee2e2', fg: '#b91c1c' },
+  a_planifier: { label: 'À planifier', categorie: 'a_traiter', bg: '#fef9c3', fg: '#854d0e' },
+  envoyee_attente_ar: { label: 'Attente AR', categorie: 'a_traiter', bg: '#ffedd5', fg: '#9a3412' },
+  ar_recu: { label: 'AR reçu', categorie: 'finalise', bg: '#d1fae5', fg: '#047857' },
+  refusee: { label: 'Refusée', categorie: 'a_traiter', bg: '#fee2e2', fg: '#b91c1c' },
+}
