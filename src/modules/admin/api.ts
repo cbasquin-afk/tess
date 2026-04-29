@@ -2,6 +2,7 @@ import { supabase } from '@/shared/supabase'
 import type {
   AdminBadges,
   AdminRetractationRow,
+  ContratResiliation,
   ResiliationV2Row,
   TadminAsafCloture,
   TadminCommission,
@@ -44,6 +45,20 @@ export async function closeInstance(
     p_motif: motif,
   })
   if (error) throw new Error(`tadmin_close_instance: ${error.message}`)
+}
+
+export async function fetchContratsResiliations(
+  date_debut: string,
+  date_fin: string,
+): Promise<ContratResiliation[]> {
+  const { data, error } = await supabase
+    .from('tadmin_v_contrats_resiliations')
+    .select('*')
+    .gte('date_signature', date_debut)
+    .lte('date_signature', date_fin)
+    .order('date_signature', { ascending: false })
+  if (error) throw new Error(`tadmin_v_contrats_resiliations: ${error.message}`)
+  return (data ?? []) as ContratResiliation[]
 }
 
 export async function fetchContrats(): Promise<TadminContrat[]> {

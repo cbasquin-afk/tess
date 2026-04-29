@@ -20,6 +20,12 @@ import {
 import type { TadminCommission, TadminContrat } from '../types'
 import { ClientCell } from '../components/ClientCell'
 import { EditableField } from '../components/EditableField'
+import {
+  DateRangeSelector,
+  computePresetRange,
+  type DateRange,
+} from '../components/DateRangeSelector'
+import { ResiliationsView } from './ResiliationsView'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const COMMERCIAUX = ['Charlotte', 'Cheyenne', 'Mariam', 'Christopher'] as const
@@ -60,19 +66,19 @@ const ORIGINE_OPTIONS = ['Mapapp', 'Multi Equipement', 'Recommandation', 'Site']
 
 type FilterPill =
   | 'all'
-  | 'mois_courant'
   | 'En attente'
   | 'Validé'
   | 'Instance'
   | 'Rétracté'
+  | 'resiliation'
 
 const FILTER_PILLS: { key: FilterPill; label: string }[] = [
   { key: 'all', label: 'Tous' },
-  { key: 'mois_courant', label: 'Mois en cours' },
   { key: 'En attente', label: 'En attente' },
   { key: 'Validé', label: 'Validés' },
   { key: 'Instance', label: 'Instance' },
   { key: 'Rétracté', label: 'Rétractés' },
+  { key: 'resiliation', label: 'Résiliation' },
 ]
 
 type SortKey =
@@ -116,20 +122,6 @@ function fmtMois(annee: number, mois: number): string {
   return String(mois).padStart(2, '0') + '/' + annee
 }
 
-function isCurrentMonth(dateStr: string | null): boolean {
-  if (!dateStr) return false
-  try {
-    const d = new Date(dateStr)
-    const now = new Date()
-    return (
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth()
-    )
-  } catch {
-    return false
-  }
-}
-
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -138,7 +130,8 @@ function todayISO(): string {
 // ── Composant principal ──────────────────────────────────────
 function Contrats() {
   const { contrats, loading, error, reload } = useAdminContrats()
-  const [filter, setFilter] = useState<FilterPill>('mois_courant')
+  const [filter, setFilter] = useState<FilterPill>('all')
+  const [dateRange, setDateRange] = useState<DateRange>(() => computePresetRange('ce_mois'))
   const [commercial, setCommercial] = useState<string>('')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date_signature')
@@ -167,12 +160,17 @@ function Contrats() {
     return arr
   }, [contrats, sortKey, sortDir])
 
-  // Filtres : pill + commercial + search
+  // Filtres : range de dates + pill + commercial + search.
+  // La range de dates s'applique à TOUS les filtres (sauf 'resiliation' qui
+  // a son propre composant qui re-fetch côté serveur).
   const visible = useMemo<TadminContrat[]>(() => {
     let rows = sorted
-    if (filter === 'mois_courant') {
-      rows = rows.filter((c) => isCurrentMonth(c.date_signature))
-    } else if (filter !== 'all') {
+    // Range de dates : filtre sur date_signature
+    rows = rows.filter((c) => {
+      if (!c.date_signature) return false
+      return c.date_signature >= dateRange.debut && c.date_signature <= dateRange.fin
+    })
+    if (filter !== 'all' && filter !== 'resiliation') {
       rows = rows.filter((c) => c.statut_compagnie === filter)
     }
     if (commercial) {
@@ -188,7 +186,7 @@ function Contrats() {
       )
     }
     return rows
-  }, [sorted, filter, commercial, search])
+  }, [sorted, filter, commercial, search, dateRange.debut, dateRange.fin])
 
   function toggleSort(k: SortKey) {
     if (sortKey === k) {
@@ -295,8 +293,19 @@ function Contrats() {
       <div>
         <h1 style={{ margin: 0, fontSize: 24 }}>Contrats</h1>
         <p style={{ color: '#64748b', marginTop: 4 }}>
-          Liste centrale des contrats — filtre Mois en cours actif par défaut.
+          Liste centrale des contrats — filtrée par date de signature.
         </p>
+      </div>
+
+      {/* Sélecteur de période global */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Période
+        </span>
+        <DateRangeSelector value={dateRange} onChange={setDateRange} />
+        <span style={{ fontSize: 11, color: '#94a3b8' }}>
+          Filtre appliqué à tous les onglets ci-dessous (date de signature).
+        </span>
       </div>
 
       {/* Filtres */}
@@ -383,7 +392,19 @@ function Contrats() {
         </button>
       </div>
 
+      {/* Vue Résiliations dédiée (split À traiter / Finalisé) */}
+      {filter === 'resiliation' && (
+        <ResiliationsView
+          dateRange={dateRange}
+          onContratClick={(id) => {
+            const c = contrats.find((x) => x.id === id)
+            if (c) setPanelTarget(c)
+          }}
+        />
+      )}
+
       {/* Tableau */}
+      {filter !== 'resiliation' && (
       <div
         style={{
           background: '#fff',
@@ -720,6 +741,7 @@ function Contrats() {
           </table>
         )}
       </div>
+      )}
 
       {/* Modales */}
       {addOpen && (
